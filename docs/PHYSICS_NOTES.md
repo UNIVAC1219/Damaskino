@@ -63,6 +63,35 @@ Deferred (raised by the panel):
 - **Blast LD50 = 10 psi** is a building-collapse-dominated consequence anchor;
   revisit against ~5 psi urban-collapse studies with the sheltering model.
 
+## Phase 2 — panel items
+
+Resolved (post-panel):
+- **Earth-curvature sign fixed** in terrain LOS: occlusion is `terrain + drop >
+  sightline` (the chord dips below the sphere by the sagitta). The prior sign
+  made curvature *improve* visibility; negligible at Phase 2 ranges but wrong
+  beyond ~30 km. Guarded by a flat-sea horizon test.
+- **Crater radius recalibrated** to ~150 m / 45 m at 1 Mt (dry soil, contact
+  burst) from ~200 m; was ~30% high vs. Glasstone.
+- **LOS raycast gated** on `r_km <= max(thermal, prompt range)` so cost is
+  independent of grid span (was a raycast per populated cell).
+
+Deferred:
+- **Blast is not terrain-masked** (only thermal/prompt LOS). Blast waves
+  diffract/reflect around terrain; explicit note so this isn't assumed modeled.
+- **Terrain fallout modifier is non-conserving** (local valley ×1.3 / ridge
+  ×0.8 multiplier, not a redistribution), and the off-grid activity diagnostic
+  is accumulated before it, so `off_grid_fraction` is blind to terrain. Phase 3
+  Lagrangian deposition should make this mass-conserving.
+- **Partial-tile LOS inconsistency**: if GZ is outside the DEM tile but some
+  receivers are inside, the emitter elevation falls back to 0. Require the tile
+  to contain GZ when the global pyramid lands.
+- **Neutron activation** is a separate diagnostic, not added to the casualty
+  dose field; fold into near-GZ dose for enhanced-radiation / low-fallout air
+  bursts.
+- **HEMP E1 amplitude** is a flat nominal 50 kV/m; footprint geometry is exact.
+  A Karzas-Latter field(altitude, geomagnetic latitude) with the off-nadir
+  "smile" is the eventual upgrade (IGRF already scoped for E3).
+
 ## Deferred to Phase 3 (Lagrangian fallout rewrite)
 
 - **Continuous settling curve.** The piecewise Stokes / Schiller-Naumann /

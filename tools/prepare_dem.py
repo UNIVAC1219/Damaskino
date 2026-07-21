@@ -56,6 +56,12 @@ def main():
         nrows, ncols = data.shape
         # transform of the (decimated) window
         wt = src.window_transform(win)
+        # The engine assumes square cells in EPSG:4326; guard against non-square
+        # source pixels, which would introduce a latitude-scaling error.
+        if abs(abs(wt.a) - abs(wt.e)) > 1e-9 * abs(wt.a):
+            print(f"WARNING: source pixels are non-square (dx={wt.a}, dy={wt.e}); "
+                  f"the engine assumes square cells and may mis-scale latitude.",
+                  file=sys.stderr)
         cellsize = wt.a * step  # degrees per output cell (assumes square, EPSG:4326)
         xll = wt.c
         yll = wt.f + wt.e * (nrows * step)  # wt.e is negative (north-up)

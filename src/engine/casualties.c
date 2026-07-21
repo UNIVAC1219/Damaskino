@@ -135,6 +135,14 @@ void dmk_casualties_compute(const DmkModel *m, const DmkPopulation *pop,
     real_t fireball_m = 55.0 * pow(yield, 0.4);          /* nominal fireball radius */
     real_t burst_h = surface ? fireball_m : sc->weapon.hob_m;
     real_t e_alt_asl = (use_terrain ? dmk_dem_elev(m->dem, sc->gz.lat, sc->gz.lon) : 0.0) + burst_h;
+    /* LOS masking only matters where thermal or prompt are non-negligible; beyond
+     * that radius both are ~0, so skip the (expensive) raycast. */
+    real_t los_max_km = 0.0;
+    if (use_terrain) {
+        real_t tr = dmk_thermal_range_km(yield, surface, 2.5, opts->visibility_km);
+        real_t pr = dmk_prompt_range_km(yield, fission, 100.0);
+        los_max_km = (tr > pr ? tr : pr) * 1.1;
+    }
 
     for (int gy = 0; gy < m->grid.n; gy++) {
         for (int gx = 0; gx < m->grid.n; gx++) {
@@ -166,7 +174,7 @@ void dmk_casualties_compute(const DmkModel *m, const DmkPopulation *pop,
             /* Terrain masking: if the fireball is hidden behind terrain, direct
              * thermal is blocked entirely and prompt radiation drops to residual
              * skyshine (~10%). */
-            if (use_terrain && r_km > 0.05) {
+            if (use_terrain && r_km > 0.05 && r_km <= los_max_km) {
                 int los = dmk_terrain_los(m->dem, sc->gz.lat, sc->gz.lon, e_alt_asl,
                                           lat, lon, 1.7);
                 if (!los) { exp_frac = 0.0; prem *= 0.1; }

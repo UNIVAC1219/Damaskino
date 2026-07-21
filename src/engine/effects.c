@@ -212,9 +212,11 @@ int dmk_thermal_rings(const DmkScenario *sc, real_t visibility_km,
 DmkCrater dmk_crater(real_t yield_kt, int is_surface_burst) {
     DmkCrater c = {0.0, 0.0};
     if (!is_surface_burst || yield_kt <= 0.0) return c;
-    /* Apparent crater radius scales ~ W^0.3 in dry soil, anchored to ~200 m
-     * radius for 1 Mt; depth ~ 0.3 * radius. */
-    c.radius_m = 200.0 * pow(yield_kt / 1000.0, 0.3);
+    /* Apparent crater radius scales ~ W^0.3 in dry soil, anchored to ~150 m
+     * radius / ~45 m depth for a 1 Mt contact surface burst (Glasstone & Dolan,
+     * dry soil). Cratering is strongly HOB-sensitive; this assumes a contact
+     * burst (refined with soil/HOB dependence later). */
+    c.radius_m = 150.0 * pow(yield_kt / 1000.0, 0.3);
     c.depth_m  = 0.30 * c.radius_m;
     return c;
 }

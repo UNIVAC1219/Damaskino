@@ -100,11 +100,12 @@ int dmk_terrain_los(const DmkDem *d, real_t elat, real_t elon, real_t e_alt_asl_
         double x = t * D_m;                          /* distance from emitter */
         /* Straight chord altitude between emitter and receiver (ASL). */
         double chord = e_alt_asl_m * (1.0 - t) + r_alt_asl * t;
-        /* Earth curvature: the surface drops below the chord by x*(D-x)/2R. */
+        /* Earth curvature: in the (arc-distance, ASL-height) frame the straight
+         * 3-D sightline dips below the chord by the sagitta x*(D-x)/2R, i.e. the
+         * terrain effectively rises by that much relative to the sightline. */
         double drop = x * (D_m - x) / (2.0 * R);
         double terrain = dmk_dem_elev(d, lat, lon);
-        /* Terrain (curvature-adjusted) rising above the sightline occludes. */
-        if (terrain - drop > chord + 1.0) return 0;
+        if (terrain + drop > chord + 1.0) return 0;
     }
     return 1;
 }

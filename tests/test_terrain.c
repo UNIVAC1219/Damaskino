@@ -68,9 +68,30 @@ int main(void) {
     DmkDem empty; memset(&empty, 0, sizeof empty);
     CHECK(dmk_terrain_los(&empty, 40, -75, 100, 41, -75, 1.7) == 1, "no DEM -> visible");
 
+    /* Earth-curvature horizon: two 1.7 m observers over flat sea 12 km apart
+     * are occluded by the bulge (horizon ~4.7 km each); 6 km apart are visible. */
+    {
+        const char *fp2 = "/tmp/dem_flat.asc";
+        int M = 140; double cs = 0.003;
+        double xll = -75.0 - (M/2)*cs, yll = 40.0 - (M/2)*cs;
+        FILE *f = fopen(fp2, "w");
+        fprintf(f, "ncols %d\nnrows %d\nxllcorner %f\nyllcorner %f\ncellsize %f\nNODATA_value -9999\n",
+                M, M, xll, yll, cs);
+        for (int r = 0; r < M; r++) { for (int c = 0; c < M; c++) fprintf(f, "0 "); fprintf(f, "\n"); }
+        fclose(f);
+        DmkDem flat; dmk_dem_load_asc(&flat, fp2);
+        double dlon12 = 12.0 / (111.32 * cos(40.0*M_PI/180.0));
+        double dlon6  = 6.0  / (111.32 * cos(40.0*M_PI/180.0));
+        int occ12 = dmk_terrain_los(&flat, 40.0, -75.0, 1.7, 40.0, -75.0 + dlon12, 1.7);
+        int vis6  = dmk_terrain_los(&flat, 40.0, -75.0, 1.7, 40.0, -75.0 + dlon6, 1.7);
+        CHECK(occ12 == 0, "curvature: 1.7 m observers 12 km apart over sea are occluded");
+        CHECK(vis6 == 1, "curvature: 1.7 m observers 6 km apart are visible");
+        dmk_dem_free(&flat);
+    }
+
     /* Cratering */
     DmkCrater c1000 = dmk_crater(1000.0, 1);
-    CHECK(c1000.radius_m > 150.0 && c1000.radius_m < 260.0, "1 Mt surface crater ~200 m radius");
+    CHECK(c1000.radius_m > 120.0 && c1000.radius_m < 185.0, "1 Mt surface crater ~150 m radius");
     CHECK(dmk_crater(1000.0, 0).radius_m == 0.0, "air burst leaves no crater");
     CHECK(dmk_crater(8000.0, 1).radius_m > c1000.radius_m, "bigger yield -> bigger crater");
 
