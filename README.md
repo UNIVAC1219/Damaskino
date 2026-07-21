@@ -41,6 +41,15 @@ damaskino run examples/dc_500kt_surface.json \
 # Browse the target and weapon catalogs
 damaskino targets --search "Norfolk"
 damaskino weapons
+
+# Monte Carlo uncertainty -> probabilistic (P90/P50/P10) dose contours
+damaskino ensemble examples/dc_500kt_surface.json --samples 200
+
+# Validate the effect models against published benchmarks
+damaskino validate
+
+# Personal fallout dose ("when is it safe to leave?")
+damaskino dose --rate 300 --arrival 1 --window 48 --pf 40
 ```
 
 ### `run` options

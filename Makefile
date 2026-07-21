@@ -31,12 +31,14 @@ FULL_SRC = \
 	src/engine/effects.c \
 	src/engine/casualties.c \
 	src/engine/lagrangian.c \
+	src/engine/ensemble.c \
 	src/weather/weather.c \
 	src/json/json.c \
 	src/io/output.c \
 	src/io/output_report.c \
 	src/io/scenario.c \
 	src/io/catalog.c \
+	src/io/validate.c \
 	src/cli/main.c
 
 UNIVAC_SRC = \
@@ -61,9 +63,9 @@ univac: dirs
 ENGINE_OBJS_FOR_TEST = \
 	src/engine/physics.c src/engine/fallout.c src/engine/terrain.c src/engine/engine.c \
 	src/engine/effects.c src/engine/casualties.c src/engine/lagrangian.c \
-	src/weather/weather.c \
+	src/engine/ensemble.c src/weather/weather.c \
 	src/json/json.c src/io/output.c src/io/output_report.c \
-	src/io/scenario.c src/io/catalog.c src/io/output_teletype.c
+	src/io/scenario.c src/io/catalog.c src/io/validate.c src/io/output_teletype.c
 
 test: dirs
 	$(CC) $(CFLAGS) $(ENGINE_OBJS_FOR_TEST) tests/test_engine.c -o $(BUILD)/test_engine $(LDLIBS)
@@ -71,11 +73,13 @@ test: dirs
 	$(CC) $(CFLAGS) $(ENGINE_OBJS_FOR_TEST) tests/test_casualties.c -o $(BUILD)/test_casualties $(LDLIBS)
 	$(CC) $(CFLAGS) src/engine/terrain.c src/engine/effects.c tests/test_terrain.c -o $(BUILD)/test_terrain $(LDLIBS)
 	$(CC) $(CFLAGS) $(ENGINE_OBJS_FOR_TEST) tests/test_lagrangian.c -o $(BUILD)/test_lagrangian $(LDLIBS)
+	$(CC) $(CFLAGS) $(ENGINE_OBJS_FOR_TEST) tests/test_ensemble.c -o $(BUILD)/test_ensemble $(LDLIBS)
 	./$(BUILD)/test_engine
 	./$(BUILD)/test_effects
 	./$(BUILD)/test_casualties
 	./$(BUILD)/test_terrain
 	./$(BUILD)/test_lagrangian
+	./$(BUILD)/test_ensemble
 
 clean:
 	rm -rf $(BUILD)

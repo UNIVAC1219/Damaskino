@@ -20,12 +20,12 @@
     { "case": "Castle Bravo 15 Mt surface, lethal fallout downwind extent",
       "yield_kt": 15000, "burst": "surface", "fission_fraction": 0.67,
       "metric": "downwind extent of ~450 rem (48 h, unsheltered) contour",
-      "reference_km": 200, "tolerance_frac": 0.5, "approximate": true,
+      "level": 450, "reference_km": 200, "tolerance_frac": 0.5, "approximate": true,
       "source": "public Castle Bravo (1954) fallout reconstructions; strongly wind-dependent" },
     { "case": "1 MT fission surface, 1000 R/hr H+1 downwind extent",
       "yield_kt": 1000, "burst": "surface", "fission_fraction": 1.0,
       "metric": "downwind extent of 1000 R/hr H+1 contour (idealized 15 kt wind)",
-      "reference_km": 40, "tolerance_frac": 0.5, "approximate": true,
+      "level": 1000, "reference_km": 40, "tolerance_frac": 0.5, "approximate": true,
       "source": "Glasstone & Dolan idealized unit-time reference dose-rate pattern" }
   ],
 

@@ -25,7 +25,10 @@
 #include "catalog.h"
 #include "terrain.h"
 #include "weather.h"
+#include "ensemble.h"
+#include "validate.h"
 #include "json.h"
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -243,6 +246,88 @@ static int cmd_dose(int argc, char **argv) {
     return 0;
 }
 
+static int cmd_ensemble(int argc, char **argv) {
+    const char *scenario_path = NULL, *json_out = NULL;
+    int samples = 100; unsigned seed = 1;
+    for (int i = 0; i < argc; i++) {
+        if (!strcmp(argv[i], "--samples") && i+1 < argc) samples = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--seed") && i+1 < argc) seed = (unsigned)atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--json") && i+1 < argc) json_out = argv[++i];
+        else if (argv[i][0] != '-') scenario_path = argv[i];
+    }
+    if (!scenario_path) { fprintf(stderr, "Usage: damaskino ensemble <scenario.json> [--samples N] [--seed S] [--json f]\n"); return 2; }
+    char *text = dmk_read_file(scenario_path);
+    if (!text) { fprintf(stderr, "ERROR: cannot read %s\n", scenario_path); return 1; }
+    DmkScenario sc; char err[256];
+    if (dmk_scenario_parse(text, &sc, err, sizeof err) != 0) { fprintf(stderr, "ERROR: %s\n", err); free(text); return 1; }
+    free(text);
+
+    DmkEnsembleSpec spec; dmk_ensemble_spec_defaults(&spec);
+    real_t levels[] = {1, 10, 100, 1000};
+    int nlev = 4;
+    DmkEnsembleResult r;
+    if (dmk_ensemble_run(&sc, &spec, samples, seed, levels, nlev, &r) != 0) {
+        fprintf(stderr, "ERROR: ensemble run failed\n"); return 1;
+    }
+
+    printf("=== Monte Carlo ensemble: %d members ===\n", r.samples);
+    printf("  (yield CV %.0f%%, wind speed CV %.0f%%, dir sd %.0f deg, fission sd %.2f)\n\n",
+           spec.yield_cv*100, spec.wind_speed_cv*100, spec.wind_dir_sd, spec.fission_sd);
+    printf("  Dose (R/hr) | P>=90%% area | P>=50%% area | P>=10%% area | P50 extent\n");
+    printf("  ------------|-------------|-------------|-------------|----------\n");
+    double cellA = r.cell_km * r.cell_km;
+    for (int l = 0; l < nlev; l++) {
+        long c90=0,c50=0,c10=0; double ext=0;
+        for (int y=0;y<r.n;y++) for (int x=0;x<r.n;x++){
+            double p = r.prob[l][(size_t)y*r.n+x];
+            if (p>=0.9) c90++;
+            if (p>=0.5){
+                c50++;
+                double dx=(x-r.gz_x)*r.cell_km, dy=(y-r.gz_y)*r.cell_km;
+                double d=sqrt(dx*dx+dy*dy);
+                if(d>ext)ext=d;
+            }
+            if (p>=0.1) c10++;
+        }
+        printf("  %10.0f  | %9.0f   | %9.0f   | %9.0f   | %6.1f km\n",
+               levels[l], c90*cellA, c50*cellA, c10*cellA, ext);
+    }
+
+    if (json_out) {
+        JsonWriter w; json_writer_init(&w, 1);
+        json_obj_begin(&w);
+        json_kv_str(&w, "tool", "damaskino"); json_kv_str(&w, "analysis", "monte_carlo_ensemble");
+        json_kv_int(&w, "members", r.samples);
+        json_key(&w, "exceedance"); json_arr_begin(&w);
+        for (int l = 0; l < nlev; l++) {
+            long c90=0,c50=0,c10=0; double ext=0;
+            for (int y=0;y<r.n;y++) for (int x=0;x<r.n;x++){
+                double p=r.prob[l][(size_t)y*r.n+x];
+                if(p>=0.9) c90++;
+                if(p>=0.5){
+                    c50++;
+                    double dx=(x-r.gz_x)*r.cell_km,dy=(y-r.gz_y)*r.cell_km;
+                    double d=sqrt(dx*dx+dy*dy);
+                    if(d>ext)ext=d;
+                }
+                if(p>=0.1) c10++;
+            }
+            json_obj_begin(&w);
+            json_kv_num(&w,"level_rhr",levels[l]);
+            json_kv_num(&w,"area_p90_km2",c90*cellA);
+            json_kv_num(&w,"area_p50_km2",c50*cellA);
+            json_kv_num(&w,"area_p10_km2",c10*cellA);
+            json_kv_num(&w,"extent_p50_km",ext);
+            json_obj_end(&w);
+        }
+        json_arr_end(&w); json_obj_end(&w);
+        FILE *f = fopen(json_out, "wb"); if (f){ fputs(w.buf,f); fclose(f); }
+        json_writer_free(&w);
+    }
+    dmk_ensemble_free(&r);
+    return 0;
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr,
@@ -255,10 +340,12 @@ int main(int argc, char **argv) {
             "  %s targets [--search TERM] [--state ST] [--limit N]\n"
             "  %s weapons\n"
             "  %s dose --rate <H+1 R/hr> [--arrival H] [--window H] [--pf N]\n"
+            "  %s ensemble <scenario.json> [--samples N] [--seed S] [--json f]\n"
+            "  %s validate [benchmarks.json]\n"
             "  %s version\n"
             "\nScenario JSON may reference the catalog: \"target\": <id|name>,\n"
             "\"weapon_preset\": \"<id>\" (see: damaskino targets / weapons).\n",
-            DMK_VERSION_STRING, argv[0], argv[0], argv[0], argv[0], argv[0]);
+            DMK_VERSION_STRING, argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0]);
         return 2;
     }
     if (!strcmp(argv[1], "version")) { printf("damaskino %s\n", DMK_VERSION_STRING); return 0; }
@@ -266,6 +353,9 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[1], "targets")) return cmd_targets(argc - 2, argv + 2);
     if (!strcmp(argv[1], "weapons")) return cmd_weapons();
     if (!strcmp(argv[1], "dose")) return cmd_dose(argc - 2, argv + 2);
+    if (!strcmp(argv[1], "ensemble")) return cmd_ensemble(argc - 2, argv + 2);
+    if (!strcmp(argv[1], "validate"))
+        return dmk_run_validation(argc >= 3 ? argv[2] : "data/validation.json");
     fprintf(stderr, "Unknown command: %s\n", argv[1]);
     return 2;
 }
