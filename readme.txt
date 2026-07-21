@@ -1,4 +1,6 @@
-Large list is from https://www.nuclearwarmap.com/targetlist.html
+Large list of targets in USA is from https://www.nuclearwarmap.com/targetlist.html
+
+Large list of targets in China/former USSR is from https://blog.nuclearsecrecy.com/misc/targets1956/
 
 Small list is from https://worldpopulationreview.com/state-rankings/nuclear-targets-by-state
 
