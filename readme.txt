@@ -21,6 +21,12 @@ Small list is from https://worldpopulationreview.com/state-rankings/nuclear-targ
 WSEG-10 report from https://apps.dtic.mil/sti/tr/pdf/AD0261752.pdf
 
 Topographic data from https://portal.opentopography.org/raster?opentopoID=OTSRTM.122019.4326.1
+  (SRTM15+; tools/fetch_dem.py pulls it via the OpenTopography API with a free key)
+
+Population data (optional, for --pop-asc via tools/prepare_pop.py):
+  - GHS-POP (JRC GHSL)  https://ghsl.jrc.ec.europa.eu/download.php   (100 m; download by TILE)
+  - WorldPop            https://www.worldpop.org/                    (100 m per-country)
+  - Meta/Data-for-Good HRSL  https://data.humdata.org/               (30 m where covered)
 
 Modern strategic-site coordinates/yields (in data/targets_adversary.json) are from
 FAS / Kristensen & Korda "Nuclear Notebook", russianforces.org, and the MIT-licensed

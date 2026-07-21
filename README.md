@@ -75,29 +75,47 @@ Three optional datasets each have a prep step and a CLI flag that consumes them.
 The Python prep tools live in `tools/`; install their deps once with
 `pip install -r requirements.txt`.
 
-| Want… | Download from | Prepare it | Feed to the engine |
+| Want… | Get it | Prepare it | Feed to the engine |
 |---|---|---|---|
-| **Terrain** — line-of-sight masking (thermal/prompt) + terrain-aware fallout | SRTM15+ (OpenTopography, global ~450 m) or Copernicus GLO-30 (30 m over land), as GeoTIFF | `python tools/prepare_dem.py --raster world.tif --lat 38.9 --lon -77 --radius-km 60 --out dem/dc.asc` | `--dem dem/dc.asc` |
+| **Terrain** — line-of-sight masking (thermal/prompt) + terrain-aware fallout | **easiest:** the OpenTopography API, via `tools/fetch_dem.py` (needs a free API key). Or download a GeoTIFF by hand (SRTM15+, Copernicus GLO-30). | `python tools/fetch_dem.py --lat 38.9 --lon -77 --radius-km 60 --out dem/dc.asc` (or `prepare_dem.py` on a hand-downloaded GeoTIFF) | `--dem dem/dc.asc` |
 | **Real weather** — modern Lagrangian fallout with true winds + rainout | ERA5 (Copernicus CDS) or GFS/GDAS (NOAA NCEP), GRIB2/NetCDF | `python tools/fetch_weather.py --grib gfs.grib2 --lat 38.9 --lon -77 --out weather/dc.json` | `--weather weather/dc.json` |
-| **Real population** — actual casualty counts instead of a flat density | WorldPop or GHS-POP population count raster | clip to an ESRI ASCII grid, e.g. `gdal_translate -of AAIGrid -projwin … pop.tif pop/dc.asc` | `--pop-asc pop/dc.asc` |
+| **Real population** — actual casualty counts instead of a flat density | a population raster **tile** (see note below): GHS-POP, WorldPop, or Meta HRSL | `python tools/prepare_pop.py --raster tile.tif --units count --lat 38.9 --lon -77 --radius-km 60 --out pop/dc.asc` | `--pop-asc pop/dc.asc` |
+
+> **`fetch_dem.py` beats the OpenTopography web form.** It calls the API directly
+> (set `OPENTOPO_API_KEY` or pass `--api-key`), clips to your target, and — unlike
+> the web form — handles the ±180° antimeridian automatically by fetching two
+> tiles and mosaicking. No map-box drawing, no *"Queries across the 180 degrees
+> longitude line…"* error.
+
+> **Population: grab a tile, and mind the units/projection.** Do **not** download
+> the multi-GB *global* GHS-POP file — the JRC server is slow and it will time out.
+> Use **"Download by tiles"** on the GHS-POP page (or WorldPop per-country, or Meta
+> HRSL). The engine wants **people/km² in EPSG:4326**, but GHS-POP ships **per-cell
+> counts in Mollweide** — `prepare_pop.py` reprojects to lon/lat *and* converts
+> counts→density for you (`--units count`; use `--units density` for WorldPop
+> density products). Reliable high-res sources:
+> - **GHS-POP** (JRC) — 100 m; download by tile, not the global zip. Also exportable
+>   for any region via **Google Earth Engine** (`JRC/GHSL/P2023A/GHS_POP`) if the
+>   JRC server is down.
+> - **Meta / Data-for-Good HRSL** — **30 m**, the highest-res open option where a
+>   country is covered (via HDX `data.humdata.org` or the AWS `dataforgood-fb-data`
+>   open bucket).
+> - **WorldPop** — 100 m per-country (`--units count`, or grab the density product
+>   and use `--units density`).
 
 The exact source URLs (OpenTopography, Copernicus CDS, NOAA NCEP, WorldPop) and
 licensing are listed in [`readme.txt`](readme.txt). Rough sizes: a 60 km SRTM15+
 tile is a few MB and a single wind column is tiny, but a national WorldPop raster
 can be hundreds of MB — clip it to your area of interest first.
 
-> **Download a small box around one target, not a whole country.** The engine
-> reads a per-target DEM tile, so on OpenTopography select (or type into "Manually
-> enter selection coordinates") just a ~1–2° box around your aimpoint, e.g. for
-> Moscow `Xmin 36.5, Ymin 55.2, Xmax 38.7, Ymax 56.3`. A country-sized box across
-> Russia's far east crosses the ±180° antimeridian, which SRTM15+ rejects with
-> *"Queries across the 180 degrees longitude line are only supported for GMRT"* —
-> if you genuinely need a target east of 180°, grab a box that stays under 180 (or
-> use the GMRT dataset, which allows it). Then clip to the exact tile:
->
-> ```bat
-> python tools\prepare_dem.py --raster moscow_srtm15.tif --lat 55.7558 --lon 37.6173 --radius-km 60 --out dem\moscow.asc
-> ```
+> **Downloading terrain by hand (fallback if you skip `fetch_dem.py`).** The
+> engine reads a per-target DEM tile, so select just a ~1–2° box around your
+> aimpoint — not a whole country — e.g. for Moscow `Xmin 36.5, Ymin 55.2, Xmax
+> 38.7, Ymax 56.3`. A country-sized box across Russia's far east crosses the
+> ±180° antimeridian, which the web form rejects; `fetch_dem.py` handles that
+> automatically, but by hand you must keep the box on one side of 180°. Then clip
+> the GeoTIFF: `python tools/prepare_dem.py --raster moscow.tif --lat 55.7558
+> --lon 37.6173 --radius-km 60 --out dem/moscow.asc`.
 
 Once prepared, combine any subset of them:
 
@@ -231,7 +249,9 @@ with `pip install -r requirements.txt`.
 |---|---|
 | `tools/build_targets.py` | Clean the source aimpoint list(s) into `data/targets.json` (fixes typos, parses yields/burst, assigns ids). Run: `python tools/build_targets.py` |
 | `tools/build_adversary_targets.py` | Build `data/targets_adversary.json` (USSR/China/DPRK) from the 1956 SAC "Air Power" airfield list (`prepatory_CSVs/usa_targets_1956.csv`), filtering out now-NATO/EU countries, categorizing, and modeling doctrine yields — plus ~34 curated modern ICBM/SSBN/bomber/C2 sites. Every row carries `source`/`category_source`/`yield_source` so real-vs-modeled is transparent. Run: `python tools/build_adversary_targets.py` |
-| `tools/prepare_dem.py` | Clip a global DEM (SRTM15+/Copernicus) to a target tile the engine reads via `--dem`. `python tools/prepare_dem.py --raster world.tif --lat 38.9 --lon -77 --radius-km 60 --out dem/dc.asc` |
+| `tools/fetch_dem.py` | Download a target DEM straight from the OpenTopography API (needs a free `OPENTOPO_API_KEY`) and write the `--dem` grid, auto-handling the ±180° antimeridian. `python tools/fetch_dem.py --lat 38.9 --lon -77 --radius-km 60 --out dem/dc.asc` |
+| `tools/prepare_dem.py` | Clip an already-downloaded global DEM GeoTIFF (SRTM15+/Copernicus) to a target tile for `--dem`. `python tools/prepare_dem.py --raster world.tif --lat 38.9 --lon -77 --radius-km 60 --out dem/dc.asc` |
+| `tools/prepare_pop.py` | Convert any population raster (GHS-POP counts/Mollweide, WorldPop, HRSL) into the `--pop-asc` grid: reprojects to EPSG:4326 and converts counts→people/km². `python tools/prepare_pop.py --raster tile.tif --units count --lat 38.9 --lon -77 --radius-km 60 --out pop/dc.asc` |
 | `tools/fetch_weather.py` | Extract a wind column from ERA5 (Copernicus CDS) or GFS/GDAS (NOAA NCEP) GRIB2/NetCDF into the JSON the engine reads via `--weather`. `python tools/fetch_weather.py --grib gfs.grib2 --lat 38.9 --lon -77 --out weather/dc.json` |
 
 `data/targets.json` (US target catalog), `data/targets_adversary.json`
