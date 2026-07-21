@@ -1,285 +1,113 @@
 @echo off
-REM Build script for WSEG-10 FALLOUT Prediction Model
-REM Unified script for MSVC and MinGW compilation
-REM Supports Windows and UNIVAC cross-compilation
-
-echo.
-echo ========================================
-echo   WSEG-10 FALLOUT Calculator - Build
-echo ========================================
-echo.
-
-set COMPILER=
-set UNIVAC_BUILD=
-
+setlocal EnableDelayedExpansion
 REM ============================================================================
-REM STEP 1: SELECT PLATFORM
+REM  Damaskino - Windows build (native).  NO Visual Studio dev prompt required.
+REM
+REM  Usage (from any normal Command Prompt, or just double-click):
+REM      build.bat            Build build\damaskino.exe (full engine)
+REM      build.bat univac     Build build\damaskino_univac.exe (UNIVAC-1219B lite)
+REM      build.bat test       Build and run the test suites
+REM      build.bat run        Build, then run the Washington D.C. example
+REM      build.bat clean      Remove the build folder
+REM
+REM  Picks a compiler automatically, in this order:
+REM      1. cl   (MSVC - located via vswhere and set up here, no dev prompt)
+REM      2. clang
+REM      3. gcc  (MinGW-w64)
 REM ============================================================================
-set PLATFORM=
-echo Please select target platform:
-echo   Press ENTER or 1 for Windows
-echo   Press 2 for UNIVAC (cross-compile)
-echo.
-set /p PLATFORM="Enter your choice (default: Windows): "
 
-if "%PLATFORM%"=="" set PLATFORM=1
-if "%PLATFORM%"=="1" goto SELECT_COMPILER
-if "%PLATFORM%"=="2" (
-    set COMPILER=1
-    set UNIVAC_BUILD=1
-    goto BUILD_START
-)
-echo Invalid choice. Defaulting to Windows.
-set PLATFORM=1
+cd /d "%~dp0"
+set "TARGET=%~1"
+if "%TARGET%"=="" set "TARGET=full"
 
-REM ============================================================================
-REM STEP 2: SELECT COMPILER (Windows only)
-REM ============================================================================
-:SELECT_COMPILER
-echo.
-echo Please select your compiler:
-echo   Press ENTER or 1 for MinGW
-echo   Press 2 for MSVC
-echo.
-set /p COMPILER="Enter your choice (default: MinGW): "
-
-if "%COMPILER%"=="" set COMPILER=1
-if "%COMPILER%"=="1" goto BUILD_START
-if "%COMPILER%"=="2" goto BUILD_START
-echo Invalid choice. Defaulting to MinGW.
-set COMPILER=1
-
-REM ============================================================================
-REM BUILD START
-REM ============================================================================
-:BUILD_START
-echo.
-echo Building WSEG-10 FALLOUT Prediction Model...
-echo.
-
-REM Jump to the selected compiler build
-if defined UNIVAC_BUILD goto UNIVAC_BUILD
-if "%COMPILER%"=="1" goto MINGW_BUILD
-if "%COMPILER%"=="2" goto MSVC_BUILD
-goto MINGW_BUILD
-
-REM ============================================================================
-REM UNIVAC BUILD (Cross-compile with -DUNIVAC flag)
-REM ============================================================================
-:UNIVAC_BUILD
-echo.
-REM Check if gcc is available
-where gcc >nul 2>&1
-if %ERRORLEVEL% NEQ 0 (
-    echo ERROR: GCC not found in PATH
-    echo Please install MinGW-w64 or your cross-compiler toolchain
-    pause
-    exit /b 1
+if /I "%TARGET%"=="clean" (
+    if exist build rmdir /s /q build
+    echo Removed build\.
+    goto :eof
 )
 
-echo Compiler: GCC with UNIVAC flag
-gcc --version | findstr "gcc"
-echo.
+if not exist build mkdir build
 
-REM Clean previous build artifacts
-echo Cleaning previous build artifacts...
-if exist fallout_univac.exe del /Q fallout_univac.exe
-if exist FALLOUT_univac.o del /Q FALLOUT_univac.o
-if exist *.o del /Q *.o
-echo.
+REM ---- Source sets ----------------------------------------------------------
+set "INC=/I include /I src\json /I src\io /I src\engine /I src\weather"
+set "GINC=-Iinclude -Isrc\json -Isrc\io -Isrc\engine -Isrc\weather"
 
-echo Building for UNIVAC platform...
-echo Compiler: GCC
-echo Platform Flags: -DUNIVAC
-echo.
+set "ENGINE=src\engine\physics.c src\engine\fallout.c src\engine\terrain.c src\engine\engine.c src\io\output_teletype.c"
+set "FULL=%ENGINE% src\engine\effects.c src\engine\casualties.c src\engine\lagrangian.c src\engine\ensemble.c src\weather\weather.c src\json\json.c src\io\output.c src\io\output_report.c src\io\scenario.c src\io\catalog.c src\io\validate.c src\cli\main.c"
+set "UNIVAC=%ENGINE% src\univac\main.c"
 
-echo Compiling FALLOUT_WSEG10.c...
-gcc -c -DUNIVAC -O2 -Wall FALLOUT_WSEG10.c -o FALLOUT_univac.o
+REM ---- Locate a compiler ----------------------------------------------------
+set "COMPILER="
+where cl >nul 2>&1 && set "COMPILER=cl"
 
-if %ERRORLEVEL% NEQ 0 (
-    echo ERROR: Failed to compile FALLOUT_WSEG10.c
-    pause
-    exit /b 1
-)
-
-echo Linking...
-gcc -o fallout_univac.exe FALLOUT_univac.o
-
-if %ERRORLEVEL% EQU 0 (
-    echo.
-    echo ========================================
-    echo   BUILD SUCCESSFUL - UNIVAC
-    echo ========================================
-    echo.
-    echo Output: fallout_univac.exe
-
-    REM Display file size
-    for %%A in (fallout_univac.exe) do (
-        echo File size: %%~zA bytes
+if not defined COMPILER (
+    REM Try to set up MSVC from a normal prompt using vswhere.
+    set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+    if exist "!VSWHERE!" (
+        for /f "usebackq tokens=*" %%i in (`"!VSWHERE!" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSPATH=%%i"
+        if defined VSPATH (
+            if exist "!VSPATH!\VC\Auxiliary\Build\vcvars64.bat" (
+                echo Setting up MSVC from "!VSPATH!" ...
+                call "!VSPATH!\VC\Auxiliary\Build\vcvars64.bat" >nul
+                where cl >nul 2>&1 && set "COMPILER=cl"
+            )
+        )
     )
+)
+
+if not defined COMPILER ( where clang >nul 2>&1 && set "COMPILER=clang" )
+if not defined COMPILER ( where gcc   >nul 2>&1 && set "COMPILER=gcc" )
+
+if not defined COMPILER (
     echo.
-    echo Platform: UNIVAC ^(cross-compiled with -DUNIVAC^)
-    echo.
-    echo NOTE: This executable is built for UNIVAC compatibility:
-    echo   - No Windows dependencies ^(windows.h^)
-    echo   - Uses strncpy instead of strcpy_s
-    echo   - Compatible with vintage systems
-    echo.
-    goto :EOF
+    echo ERROR: No C compiler found.
+    echo   Install one of:
+    echo     - Visual Studio 2022 with "Desktop development with C++"  (recommended)
+    echo     - LLVM/clang           https://releases.llvm.org
+    echo     - MinGW-w64 gcc        https://www.mingw-w64.org
+    echo   then re-run build.bat from any Command Prompt.
+    exit /b 1
+)
+echo Using compiler: %COMPILER%
+
+REM ---- Build ----------------------------------------------------------------
+if /I "%TARGET%"=="univac" ( set "SRC=%UNIVAC%" & set "OUT=build\damaskino_univac.exe" & set "DEF=-DUNIVAC" ) else ( set "SRC=%FULL%" & set "OUT=build\damaskino.exe" & set "DEF=" )
+if /I "%TARGET%"=="test" goto :build_test
+
+echo Building %OUT% ...
+if "%COMPILER%"=="cl" (
+    set "CLDEF="
+    if defined DEF set "CLDEF=/DUNIVAC"
+    cl /nologo /O2 /W3 /wd4244 /wd4267 %INC% !CLDEF! %SRC% /Fe:%OUT% /Fo:build\ >nul
+    if errorlevel 1 goto :fail
 ) else (
-    echo.
-    echo ========================================
-    echo   BUILD FAILED
-    echo ========================================
-    echo.
-    echo Check the error messages above.
-    pause
-    exit /b 1
+    %COMPILER% -std=c11 -O2 -Wall -Wno-unused-parameter %GINC% %DEF% %SRC% -o %OUT% -lm
+    if errorlevel 1 goto :fail
 )
-
-exit /b 0
-
-REM ============================================================================
-REM MINGW BUILD
-REM ============================================================================
-:MINGW_BUILD
 echo.
-REM Check if gcc is available
-where gcc >nul 2>&1
-if %ERRORLEVEL% NEQ 0 (
-    echo ERROR: MinGW GCC not found in PATH
-    echo Please install MinGW-w64 and add it to your PATH
-    echo Download from: https://www.mingw-w64.org/
-    pause
-    exit /b 1
-)
-
-echo Compiler: MinGW GCC
-gcc --version | findstr "gcc"
+echo   BUILD SUCCESSFUL -^> %OUT%
 echo.
+if /I "%TARGET%"=="run" ( echo Running the Washington D.C. example: & echo. & %OUT% run examples\dc_500kt_surface.json --pop-density 4000 )
+goto :eof
 
-REM Clean previous build artifacts
-echo Cleaning previous build artifacts...
-if exist fallout_mingw.exe del /Q fallout_mingw.exe
-if exist FALLOUT.obj del /Q FALLOUT.obj
-if exist *.o del /Q *.o
-echo.
-
-REM ============================================================================
-REM AGGRESSIVE OPTIMIZATION FLAGS
-REM ============================================================================
-REM -O3              : Maximum optimization level
-REM -march=native    : Optimize for current CPU architecture
-REM -mtune=native    : Tune code for current CPU
-REM -flto            : Link-Time Optimization (whole program optimization)
-REM -ffast-math      : Aggressive floating-point optimizations
-REM -funroll-loops   : Unroll loops for better performance
-REM -finline-functions : Inline functions aggressively
-REM -fomit-frame-pointer : Remove frame pointer for faster function calls
-REM -fno-stack-protector : Remove stack protection overhead
-REM -fmerge-all-constants : Merge identical constants
-REM -ftree-vectorize : Auto-vectorization of loops
-REM -fprefetch-loop-arrays : Generate prefetch instructions
-REM -msse4.2         : Use SSE 4.2 instructions
-REM ============================================================================
-
-set OPTIMIZE_FLAGS=-O3 -march=native -mtune=native -flto -ffast-math -funroll-loops -finline-functions -fomit-frame-pointer -fno-stack-protector -fmerge-all-constants -ftree-vectorize -fprefetch-loop-arrays -msse4.2
-
-REM Warning flags (keep for code quality)
-set WARNING_FLAGS=-Wall -Wextra -Wno-unused-parameter
-
-REM Additional performance flags
-set PERF_FLAGS=-DNDEBUG -pipe
-
-REM Linker optimization flags
-set LINKER_FLAGS=-s -static -Wl,--gc-sections -Wl,--strip-all -Wl,-O3
-
-echo Building with aggressive optimizations...
-echo Compiler: MinGW GCC
-echo Flags: %OPTIMIZE_FLAGS%
-echo.
-
-echo Compiling and linking...
-gcc %WARNING_FLAGS% %OPTIMIZE_FLAGS% %PERF_FLAGS% ^
-    -o fallout_mingw.exe ^
-    FALLOUT_WSEG10.c ^
-    %LINKER_FLAGS%
-
-if %ERRORLEVEL% EQU 0 (
-    echo.
-    echo ========================================
-    echo   BUILD SUCCESSFUL
-    echo ========================================
-    echo.
-    echo Output: fallout_mingw.exe
-
-    REM Display file size
-    for %%A in (fallout_mingw.exe) do (
-        echo File size: %%~zA bytes
+:build_test
+echo Building and running tests ...
+set "TESTENGINE=src\engine\physics.c src\engine\fallout.c src\engine\terrain.c src\engine\engine.c src\engine\effects.c src\engine\casualties.c src\engine\lagrangian.c src\engine\ensemble.c src\weather\weather.c src\json\json.c src\io\output.c src\io\output_report.c src\io\scenario.c src\io\catalog.c src\io\validate.c src\io\output_teletype.c"
+for %%T in (test_engine test_effects test_casualties test_terrain test_lagrangian test_ensemble) do (
+    if "%%T"=="test_effects" ( set "TE=src\engine\effects.c" ) else if "%%T"=="test_terrain" ( set "TE=src\engine\terrain.c src\engine\effects.c" ) else ( set "TE=%TESTENGINE%" )
+    if "%COMPILER%"=="cl" (
+        cl /nologo /O2 %INC% !TE! tests\%%T.c /Fe:build\%%T.exe /Fo:build\ >nul || goto :fail
+    ) else (
+        %COMPILER% -std=c11 -O2 %GINC% !TE! tests\%%T.c -o build\%%T.exe -lm || goto :fail
     )
-    echo.
-    echo Optimization level: MAXIMUM (-O3 + LTO + native CPU^)
-    echo.
-    echo To run FALLOUT, type: fallout_mingw.exe
-    echo.
-) else (
-    echo.
-    echo ========================================
-    echo   BUILD FAILED
-    echo ========================================
-    echo.
-    echo Check the error messages above.
-    pause
-    exit /b 1
+    echo --- %%T ---
+    build\%%T.exe || goto :fail
 )
-
-exit /b 0
-
-REM ============================================================================
-REM MSVC BUILD
-REM ============================================================================
-:MSVC_BUILD
 echo.
-REM Set up Visual Studio Developer Command Prompt environment
-REM Try common Visual Studio 2022 installation paths
-if exist "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat" (
-    call "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat" -no_logo
-) else if exist "C:\Program Files\Microsoft Visual Studio\2022\Professional\Common7\Tools\VsDevCmd.bat" (
-    call "C:\Program Files\Microsoft Visual Studio\2022\Professional\Common7\Tools\VsDevCmd.bat" -no_logo
-) else if exist "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" (
-    call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -no_logo
-) else (
-    echo Error: Could not find Visual Studio 2022 installation.
-    echo Please ensure Visual Studio 2022 is installed.
-    pause
-    exit /b 1
-)
+echo   ALL TESTS PASSED
+goto :eof
 
+:fail
 echo.
-echo Compiler: MSVC (Visual Studio 2022)
-echo Compiling with MSVC...
-echo.
-
-REM Compile source files
-cl /W4 /O2 /Fe:fallout.exe FALLOUT_WSEG10.c
-
-if %ERRORLEVEL% EQU 0 (
-    echo.
-    echo ========================================
-    echo   BUILD SUCCESSFUL
-    echo ========================================
-    echo.
-    echo Output: fallout.exe
-    echo.
-    echo To run: fallout.exe
-) else (
-    echo.
-    echo ========================================
-    echo   BUILD FAILED
-    echo ========================================
-    echo.
-    pause
-    exit /b 1
-)
-
-exit /b 0
+echo   BUILD FAILED - see errors above.
+exit /b 1

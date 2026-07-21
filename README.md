@@ -1,97 +1,129 @@
 # Damaskino
 
 A globally-applicable **nuclear-effects simulator** for civil-defense,
-preparedness, and education. Given a weapon, a location, and weather, it
-estimates air blast, thermal radiation, initial (prompt) nuclear radiation,
-radioactive fallout, and human casualties, and exports results as machine-
-readable JSON and GeoJSON for mapping.
+preparedness, and education. Given a weapon, a location, and (optionally) real
+weather and terrain, it estimates **air blast, thermal radiation, initial
+(prompt) nuclear radiation, radioactive fallout, and human casualties**, and
+exports results as JSON and GeoJSON for mapping.
 
 Damaskino models **consequences** from public science and public datasets
-(Glasstone & Dolan, WSEG-10, Kingery-Bulmash, published lethality models). It
-contains **no weapon-design information**. It is an educational / civil-defense
-tool in the spirit of NUKEMAP.
+(Glasstone & Dolan, WSEG-10, Kingery-Bulmash, published lethality models,
+HYSPLIT/FLEXPART-class Lagrangian dispersion). It contains **no weapon-design
+information**. It is an educational / civil-defense tool in the spirit of NUKEMAP.
 
-> ⚠️ Effect magnitudes are analytic estimates. They are anchored to canonical
-> benchmarks and calibrated against declassified events in validation mode
-> (Phase 3.5). Treat outputs as illustrative, not operational.
+> ⚠️ Analytic effect estimates for preparedness/education — **not operational**.
+> Spatial patterns and arrival times are more trustworthy than absolute dose
+> numbers. See [`docs/PHYSICS_NOTES.md`](docs/PHYSICS_NOTES.md) for the honest
+> model-fidelity ledger and [`plan.md`](plan.md) for the architecture.
 
-See [`plan.md`](plan.md) for the full architecture and roadmap and
-[`docs/PHYSICS_NOTES.md`](docs/PHYSICS_NOTES.md) for model fidelity notes.
+![Damaskino web map](docs/img/web_screenshot.png)
 
-## Building
+---
 
-```sh
-make full      # full-fidelity CLI            -> build/damaskino
-make univac    # UNIVAC 1219B lite profile    -> build/damaskino_univac
-make test      # build and run the test suites
+## 1. Build & run
+
+### Windows (native — no Visual Studio dev prompt needed)
+
+Just run **`build.bat`** from any Command Prompt (or double-click it). It finds
+your compiler automatically — MSVC (located via `vswhere`, set up for you),
+otherwise `clang`, otherwise MinGW-w64 `gcc`:
+
+```bat
+build.bat            :: build build\damaskino.exe (full engine)
+build.bat run        :: build, then run the Washington D.C. example
+build.bat test       :: build and run all test suites
+build.bat univac     :: build the UNIVAC-1219B lite profile
+build.bat clean      :: delete the build folder
 ```
 
-The full and lite profiles share one engine core. The lite profile
-(`-DUNIVAC`) uses `float` precision, a small heap grid, and teletype I/O with
-no JSON/weather/DEM dependencies, so it cross-compiles for vintage hardware.
+Then, for example:
 
-## Usage
+```bat
+build\damaskino.exe run examples\dc_500kt_surface.json --pop-density 4000 ^
+      --json out.json --geojson out.geojson
+```
+
+If no compiler is found, install **Visual Studio 2022** with the
+"Desktop development with C++" workload (or LLVM/clang, or MinGW-w64) and re-run
+`build.bat`. You do **not** need to open a "Developer Command Prompt" — the
+script sets up the toolchain itself.
+
+### Linux / macOS (GNU make)
 
 ```sh
-# Run a scenario, print a report, and export JSON + GeoJSON
-damaskino run examples/dc_500kt_surface.json \
-    --pop-density 4000 --pf 3 --time day \
-    --json out.json --geojson out.geojson
+make            # build/damaskino          (full engine)
+make univac     # build/damaskino_univac   (UNIVAC-1219B lite profile)
+make test       # build and run the 6 test suites
+make example    # generate web/example.geojson for the web map
+make wasm        # (optional) compile the engine to WebAssembly (needs emscripten)
+```
 
-# Browse the target and weapon catalogs
-damaskino targets --search "Norfolk"
-damaskino weapons
+> The `Makefile` is GNU-make syntax — use `make` (Linux/macOS) or `mingw32-make`
+> under MinGW. It is **not** `nmake`-compatible; on Windows use `build.bat`.
 
-# Monte Carlo uncertainty -> probabilistic (P90/P50/P10) dose contours
-damaskino ensemble examples/dc_500kt_surface.json --samples 200
+---
 
-# Validate the effect models against published benchmarks
-damaskino validate
+## 2. Command-line reference
 
-# Personal fallout dose ("when is it safe to leave?")
-damaskino dose --rate 300 --arrival 1 --window 48 --pf 40
+```
+damaskino run <scenario.json> [options]   run a scenario, print a report, export
+damaskino ensemble <scenario.json> [opts] Monte Carlo -> probabilistic contours
+damaskino validate [benchmarks.json]      check the models vs published data
+damaskino dose --rate <R/hr> [opts]       personal fallout dose calculator
+damaskino targets [--search T] [--state S] browse the target catalog
+damaskino weapons                          list weapon presets
+damaskino version
 ```
 
 ### `run` options
 
 | Option | Meaning |
 |---|---|
-| `--json FILE` | comprehensive JSON report |
-| `--geojson FILE` | GeoJSON: effect-ring circles + fallout cells |
+| `--json FILE` | comprehensive JSON report (effects, fallout, casualties, protective actions) |
+| `--geojson FILE` | GeoJSON: effect-ring circles + fallout dose cells (for the map) |
+| `--weather FILE` | real wind column (from `fetch_weather.py`) → **Lagrangian** fallout |
+| `--dem FILE` | terrain DEM (ESRI ASCII grid) → line-of-sight masking + fallout |
 | `--pop-density N` | uniform population (people/km²) → enables casualties |
-| `--pop-asc FILE` | population raster (ESRI ASCII grid; WorldPop/GHS-POP) |
-| `--dem FILE` | terrain DEM (ESRI ASCII grid) → line-of-sight + fallout |
-| `--weather FILE` | wind column (from `fetch_weather.py`) → Lagrangian fallout |
+| `--pop-asc FILE` | population raster (ESRI ASCII grid; WorldPop/GHS-POP) for real counts |
 | `--pf N` | fallout sheltering protection factor (dose ÷ N) |
 | `--pf-prompt N` | prompt-radiation protection factor (default 1) |
-| `--thermal-exposed F` | fraction with line-of-sight to the fireball |
-| `--exposure H` | fallout dose integration window (hours, default 48) |
+| `--thermal-exposed F` | fraction of people with line-of-sight to the fireball |
+| `--exposure H` | fallout dose integration window in hours (default 48) |
 | `--visibility KM` | atmospheric visibility for thermal (default 20) |
 | `--time day\|night` | time-of-day population multiplier |
-| `--threshold R/hr` | fallout cell threshold for GeoJSON |
+| `--threshold R/hr` | fallout cell threshold for the GeoJSON |
+| `--quiet` | suppress the teletype report |
 
-## Web frontend
+Without `--weather`, fallout uses the offline WSEG-10 transport; **with**
+`--weather` it uses the modern Lagrangian particle-dispersion model (real winds,
+wet-deposition rainout, anisotropic plume). Without `--pop-*`, casualties are
+skipped.
 
-![Damaskino web map](docs/img/web_screenshot.png)
-
-A MapLibre map (`web/`) renders the engine's GeoJSON — fallout dose plume,
-blast/thermal/prompt rings, ground zero — with layer toggles, a legend, click
-popups, and an optional OpenStreetMap basemap. Two ways to drive it:
+### Examples
 
 ```sh
-# Live in-browser engine (compiles the C core to WASM; needs emscripten)
-make wasm && python3 -m http.server -d web 8099   # open http://localhost:8099
+# Full report + map export, DC surface burst over dense population
+damaskino run examples/dc_500kt_surface.json --pop-density 4000 \
+    --json out.json --geojson out.geojson
 
-# Or without WASM: generate GeoJSON with the CLI and load it
-make example        # writes web/example.geojson (loaded by default)
+# Modern Lagrangian fallout with real weather + terrain
+damaskino run scenario.json --weather weather/dc.json --dem dem/dc.asc \
+    --pop-asc pop/dc.asc --pf 10
+
+# Probabilistic bands (Monte Carlo over yield/wind/fission uncertainty)
+damaskino ensemble examples/dc_500kt_surface.json --samples 300 --weather weather/dc.json
+
+# "When is it safe to leave the shelter?"
+damaskino dose --rate 300 --arrival 1 --window 48 --pf 40
+
+# Browse targets / weapons
+damaskino targets --search "Norfolk"
+damaskino weapons
 ```
 
-With the WASM engine the scenario panel (yield, location, burst, wind, density)
-recomputes live; without it, the page loads precomputed GeoJSON from the CLI's
-`--geojson`. MapLibre is vendored under `web/vendor/`, so the page is
-self-contained (no CDN required).
+---
 
-## Scenario schema
+## 3. Scenario JSON
 
 ```json
 {
@@ -103,53 +135,117 @@ self-contained (no CDN required).
 ```
 
 All fields are optional (defaults applied). Instead of `location`/`weapon` you
-may reference the catalogs:
+may reference the **catalogs**:
 
 ```json
 { "target": "Raven Rock", "weapon_preset": "w87",
   "wind": { "surface": { "speed_kts": 20, "direction_deg": 240 } } }
 ```
 
-`target` accepts a numeric id or a name substring; `weapon_preset` is a weapon
-id (`damaskino weapons`). Winds may be a single `surface` layer (winds aloft are
-estimated) or an explicit `layers` array. Invalid inputs (yield ≤ 0, ref_time
-≤ 0, fission fraction outside [0,1], out-of-range lat/lon) are rejected.
+- `target` — numeric id or a name substring (see `damaskino targets`)
+- `weapon_preset` — a weapon id (see `damaskino weapons`)
+- `burst` — `"surface"` or `"air"` (air bursts get an optimal HOB if unset)
+- `wind` — a single `surface` layer (winds aloft are estimated) or an explicit
+  `layers` array (`altitude_ft`, `speed_kts`, `direction_deg`)
 
-## Models
+Invalid inputs (yield ≤ 0, ref_time ≤ 0, fission fraction outside [0,1],
+out-of-range lat/lon) are rejected with a message.
+
+---
+
+## 4. Models & references
 
 | Effect | Model | Reference |
 |---|---|---|
-| Air blast | cube-root-scaled peak-overpressure curve + surface/HOB factor; Rankine-Hugoniot winds | Glasstone & Dolan; Kingery-Bulmash |
-| Thermal | radiant fluence with meteorological-visibility transmittance; burn thresholds | Glasstone & Dolan |
-| Prompt radiation | neutron+gamma, dual exponential attenuation, 1/R² | Glasstone; Fetter et al. 1990 |
-| Fallout (real wind) | Lagrangian particle dispersion: size-resolved parcels advected through the wind column with settling, turbulent spread, wet scavenging (rainout) | HYSPLIT/FLEXPART-class; Freiling fractionation |
+| Air blast | cube-root-scaled peak overpressure + surface/HOB factor; Rankine-Hugoniot winds | Glasstone & Dolan; Kingery-Bulmash |
+| Thermal | radiant fluence with forward-scatter transmittance; burn thresholds | Glasstone & Dolan |
+| Prompt radiation | neutron+gamma, dual exponential attenuation, slant geometry | Glasstone; Fetter et al. 1990 |
+| Fallout (real wind) | Lagrangian particle dispersion: size-resolved parcels, continuous settling, anisotropic spread + Pasquill-Gifford stability, wet-deposition rainout | HYSPLIT/FLEXPART-class; Freiling fractionation |
 | Fallout (offline) | WSEG-10 transport + Gaussian deposition (fallback / UNIVAC) | WSEG Report #10 (1959) |
-| Protective actions | 48 h integrated-dose shelter/evacuation zones + fallout arrival timing | Way-Wigner; civil-defense PAGs |
 | Casualties | probit/LD50 for blast, thermal, radiation; sheltering; Way-Wigner dose | Glasstone; open lethality literature |
-| Terrain | global DEM; line-of-sight masking (thermal/prompt) w/ Earth curvature; valley/ridge fallout | SRTM15+ / Copernicus |
-| Cratering | apparent crater radius/depth, surface bursts (~W^0.3) | Glasstone & Dolan |
-| HEMP | high-altitude E1 tangent-horizon footprint | Karzas-Latter |
-| Activation | soil neutron-activation induced dose near GZ | — |
+| Terrain | global DEM; line-of-sight masking (thermal/prompt) w/ Earth curvature | SRTM15+ / Copernicus |
+| Cratering / EMP / activation | scaling laws; high-altitude E1 footprint; soil activation | Glasstone; Karzas-Latter |
 
-Provide terrain with `--dem tile.asc`; build a tile from a global DEM with
-`tools/prepare_dem.py` (SRTM15+ / Copernicus).
+WSEG-10 report (AD0261752): <https://apps.dtic.mil/sti/tr/pdf/AD0261752.pdf>.
+`docs/PHYSICS_NOTES.md` records every calibration decision and remaining limit.
 
-## Data pipeline
+---
 
-`tools/build_targets.py` cleans and unifies the source aimpoint lists into
-`data/targets.json` (1087 targets: fixes the `Militaryj` typo, parses embedded
-yields/burst types, flags multi-aimpoint cities). `data/weapons.json` holds
-public weapon presets.
+## 5. Data tools (`tools/`, Python — see `requirements.txt`)
 
-## Repository layout
+These prepare the optional real-world datasets the engine consumes. Install deps
+with `pip install -r requirements.txt`.
+
+| Tool | Purpose |
+|---|---|
+| `tools/build_targets.py` | Clean the source aimpoint list(s) into `data/targets.json` (fixes typos, parses yields/burst, assigns ids). Run: `python tools/build_targets.py` |
+| `tools/prepare_dem.py` | Clip a global DEM (SRTM15+/Copernicus) to a target tile the engine reads via `--dem`. `python tools/prepare_dem.py --raster world.tif --lat 38.9 --lon -77 --radius-km 60 --out dem/dc.asc` |
+| `tools/fetch_weather.py` | Extract a wind column from ERA5 (Copernicus CDS) or GFS/GDAS (NOAA NCEP) GRIB2/NetCDF into the JSON the engine reads via `--weather`. `python tools/fetch_weather.py --grib gfs.grib2 --lat 38.9 --lon -77 --out weather/dc.json` |
+
+`data/targets.json` (target catalog) and `data/weapons.json` (weapon presets)
+ship prebuilt; the engine loads them for `damaskino targets/weapons` and for
+scenario `target`/`weapon_preset` references.
+
+---
+
+## 6. Web map (`web/`)
+
+A self-contained MapLibre map of the engine's GeoJSON — fallout dose plume,
+blast/thermal/prompt rings, ground zero — with layer toggles, popups, a legend,
+and an optional OpenStreetMap basemap. MapLibre is vendored under `web/vendor/`,
+so no internet is required to view it.
+
+**Static (no build tools):** generate GeoJSON with the CLI and open the page.
+
+```sh
+make example                       # writes web/example.geojson (loaded by default)
+python -m http.server -d web 8099  # then open http://localhost:8099
+```
+
+On Windows, after `build.bat`, produce a GeoJSON and drop it on the page's file
+picker, or run the `http.server` line above (Python) — the page loads
+`web/example.geojson` by default.
+
+**Live in-browser engine (optional):** `make wasm` compiles the C core to
+WebAssembly (`web/damaskino.js` + `.wasm`) so the scenario panel recomputes live.
+This requires the **emscripten** SDK (`emcc`); without it the map still works
+from precomputed GeoJSON.
+
+---
+
+## 7. Repository layout
 
 ```
-include/            public engine API + units
-src/engine/         physics, fallout, effects, casualties
-src/io/             JSON, scenario, catalog, output (JSON/GeoJSON/teletype)
-src/json/           dependency-free JSON parser + writer
-src/cli/            full-profile command-line driver
-src/univac/         UNIVAC-lite teletype driver
-tests/              engine / effects / casualty test suites
-data/, tools/       target & weapon catalogs and their build script
+build.bat            Windows build (no dev prompt needed)
+Makefile             Linux/macOS build (GNU make)
+include/             public engine API + physical units
+src/engine/          physics, fallout (WSEG + Lagrangian), effects, casualties, ensemble
+src/weather/         wind-column ingestion
+src/io/              JSON, scenario, catalog, validation, output (JSON/GeoJSON/teletype)
+src/json/            dependency-free JSON parser + writer
+src/cli/             full-profile command-line driver
+src/univac/          UNIVAC-1219B lite teletype driver
+tests/               6 test suites (engine, effects, casualties, terrain, lagrangian, ensemble)
+data/                target catalog + weapon presets (prebuilt JSON)
+tools/               Python data-prep scripts (targets, DEM, weather)
+web/                 MapLibre frontend (+ vendored MapLibre, example GeoJSON)
+docs/                PHYSICS_NOTES.md (fidelity ledger) + images
+prepatory_CSVs/      source aimpoint CSV(s) for tools/build_targets.py
+examples/            sample scenarios
+plan.md              architecture & roadmap (all phases delivered)
 ```
+
+The **UNIVAC-1219B lite profile** (`build.bat univac` / `make univac`) is the
+same engine core compiled with `-DUNIVAC`: `float` precision, a small grid, and
+72-column teletype I/O, with no JSON/weather/DEM dependencies, so it
+cross-compiles for vintage hardware.
+
+---
+
+## 8. Tests
+
+`make test` (Linux/macOS) or `build.bat test` (Windows) builds and runs six
+suites covering the JSON round-trip, the sub-models, effect benchmarks against
+Glasstone/DS02, casualty probits, terrain line-of-sight, the Lagrangian
+transport, and the Monte Carlo ensemble. `damaskino validate` checks the effect
+models against published benchmarks (blast, thermal, prompt, crater, fallout).

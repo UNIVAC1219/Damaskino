@@ -6,8 +6,7 @@ grid the engine reads (`--dem`).
 The engine consumes any DEM as an ESRI ASCII grid in geographic (lon/lat)
 coordinates; this tool produces one for a target from a global source raster:
 
-  - SRTM15+  (global topo+bathymetry, ~450 m) - the dataset this repo already
-    references (readme.txt), e.g. from OpenTopography.
+  - SRTM15+  (global topo+bathymetry, ~450 m), e.g. from OpenTopography.
   - Copernicus GLO-30 (30 m over land).
 
 Usage:

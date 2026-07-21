@@ -2,9 +2,8 @@
 """
 build_targets.py - Clean and unify the target aimpoint lists into data/targets.json.
 
-Sources:
+Source:
   prepatory_CSVs/large_list.csv  (1087 aimpoints; State,Target,Category,Lat,Lng,Yield,Type)
-  prepatory_CSVs/MASTER.csv      (curated subset with embedded-terrain IDs)
 
 Cleanups performed:
   - strip UTF-8 BOM
