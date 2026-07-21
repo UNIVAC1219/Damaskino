@@ -81,11 +81,17 @@ The Python prep tools live in `tools/`; install their deps once with
 | **Real weather** — modern Lagrangian fallout with true winds + rainout | ERA5 (Copernicus CDS) or GFS/GDAS (NOAA NCEP), GRIB2/NetCDF | `python tools/fetch_weather.py --grib gfs.grib2 --lat 38.9 --lon -77 --out weather/dc.json` | `--weather weather/dc.json` |
 | **Real population** — actual casualty counts instead of a flat density | a population raster **tile** (see note below): GHS-POP, WorldPop, or Meta HRSL | `python tools/prepare_pop.py --raster tile.tif --units count --lat 38.9 --lon -77 --radius-km 60 --out pop/dc.asc` | `--pop-asc pop/dc.asc` |
 
-> **`fetch_dem.py` beats the OpenTopography web form.** It calls the API directly
-> (set `OPENTOPO_API_KEY` or pass `--api-key`), clips to your target, and — unlike
-> the web form — handles the ±180° antimeridian automatically by fetching two
-> tiles and mosaicking. No map-box drawing, no *"Queries across the 180 degrees
-> longitude line…"* error.
+> **`fetch_dem.py` beats the OpenTopography web form.** It calls the API directly,
+> clips to your target, and — unlike the web form — handles the ±180° antimeridian
+> automatically by fetching two tiles and mosaicking. No map-box drawing, no
+> *"Queries across the 180 degrees longitude line…"* error. Set your free key
+> first (in **PowerShell** `set` does *not* set an env var — use `$env:`):
+>
+> ```powershell
+> $env:OPENTOPO_API_KEY = "your_key"    # PowerShell
+> :: set OPENTOPO_API_KEY=your_key      (cmd.exe)   — or just pass --api-key
+> python tools\fetch_dem.py --lat 55.7558 --lon 37.6173 --radius-km 60 --out dem\moscow.asc
+> ```
 
 > **Population: grab a tile, and mind the units/projection.** Do **not** download
 > the multi-GB *global* GHS-POP file — the JRC server is slow and it will time out.
@@ -102,6 +108,19 @@ The Python prep tools live in `tools/`; install their deps once with
 >   open bucket).
 > - **WorldPop** — 100 m per-country (`--units count`, or grab the density product
 >   and use `--units density`).
+> - **NASA SEDAC GPWv4** — a single **global** file, already people/km² in EPSG:4326
+>   (~1 km). Coarser, but the most hassle-free: `--units density`, no reprojection.
+>
+> Want the *whole world* in one file? `prepare_pop.py` reads only a window around
+> each target, so a global raster (global GHS-POP, or GPWv4) works fine — it never
+> loads the whole thing. If the download itself keeps timing out, use a **resumable**
+> downloader so a dropped connection continues instead of restarting:
+>
+> ```powershell
+> # Windows PowerShell (BITS is robust to flaky servers):
+> Start-BitsTransfer -Source "https://…/GHS_POP_…_100_V1_0.zip" -Destination pop.zip
+> # or, cross-platform: aria2c -x8 -s8 -c "<url>"   |   curl -C - -O "<url>"
+> ```
 
 The exact source URLs (OpenTopography, Copernicus CDS, NOAA NCEP, WorldPop) and
 licensing are listed in [`readme.txt`](readme.txt). Rough sizes: a 60 km SRTM15+

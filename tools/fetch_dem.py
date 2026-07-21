@@ -9,8 +9,13 @@ degrees longitude line are only supported for GMRT" error can't happen.
 You need a free OpenTopography API key (portal.opentopography.org -> My Account).
 Pass it with --api-key or set the OPENTOPO_API_KEY environment variable.
 
+Set the key (note: in PowerShell `set` does NOT set an env var):
+  PowerShell:   $env:OPENTOPO_API_KEY = "xxxx"
+  cmd.exe:      set OPENTOPO_API_KEY=xxxx
+  Unix:         export OPENTOPO_API_KEY=xxxx
+  ...or just pass --api-key xxxx on the command line.
+
 Usage:
-  set OPENTOPO_API_KEY=xxxx: (Windows)   or   export OPENTOPO_API_KEY=xxxx (Unix)
   python tools/fetch_dem.py --lat 55.7558 --lon 37.6173 --radius-km 60 \
                             --out dem/moscow.asc
 

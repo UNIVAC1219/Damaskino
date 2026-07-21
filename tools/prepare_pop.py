@@ -12,9 +12,16 @@ per-cell counts in Mollweide ESRI:54009).  This tool fixes both:
     true ground area (exact for equal-area projections like Mollweide; latitude-
     dependent for geographic sources).
 
-Tip: download a single tile covering your target (not the multi-GB global file,
-which is why the JRC server times out).  GHS-POP "Download by tiles", WorldPop
-per-country, or Meta HRSL per-country all work.
+This reads only a WINDOW around the target, so it works equally on a single tile
+or on one big GLOBAL file (e.g. the global GHS-POP raster or NASA SEDAC GPWv4) --
+it never loads the whole thing into memory.  If the JRC download server keeps
+timing out, fetch the global/tile file with a RESUMABLE downloader so a dropped
+connection just continues instead of restarting:
+    Windows PowerShell:  Start-BitsTransfer -Source "<url>" -Destination pop.zip
+    aria2c (fast, multi-connection):  aria2c -x8 -s8 -c "<url>"
+    curl / wget:  curl -C - -O "<url>"   |   wget -c "<url>"
+Reliable alternatives to the JRC server: NASA SEDAC GPWv4 (global, WGS84, already
+people/km^2 -> use --units density), or Google Earth Engine export of GHS_POP.
 
 Usage:
   # GHS-POP 100 m tile (per-cell counts, Mollweide):
@@ -67,8 +74,31 @@ def main():
     dst = np.full((nrows, ncols), -9999.0, dtype="float32")
 
     with rasterio.open(args.raster) as src:
-        src_arr = src.read(1).astype("float64")
+        from rasterio.windows import from_bounds, Window
+        # Read only a WINDOW around the target (plus a margin) so a GLOBAL source
+        # file works without loading gigabytes.  Transform the EPSG:4326 target
+        # box into the source CRS to locate the window.
+        try:
+            sb = transform_bounds("EPSG:4326", src.crs, W, S, E, N, densify_pts=21)
+        except Exception:
+            sb = (W, S, E, N)
+        mx = (sb[2] - sb[0]) * 0.10 or abs(src.transform.a)
+        my = (sb[3] - sb[1]) * 0.10 or abs(src.transform.e)
+        win = from_bounds(sb[0] - mx, sb[1] - my, sb[2] + mx, sb[3] + my,
+                          src.transform).round_offsets().round_lengths()
+        full = Window(0, 0, src.width, src.height)
+        try:
+            win = win.intersection(full)
+        except Exception:
+            win = None
+        if win is None or win.width < 1 or win.height < 1:
+            print("ERROR: the target area is outside this raster's coverage "
+                  "(wrong tile for this lat/lon?).", file=sys.stderr)
+            return 1
+        src_arr = src.read(1, window=win).astype("float64")
+        win_transform = src.window_transform(win)
         src_nodata = src.nodata
+
         mask = np.zeros(src_arr.shape, dtype=bool)
         if src_nodata is not None:
             mask |= (src_arr == src_nodata)
@@ -79,12 +109,14 @@ def main():
         if units == "auto":
             # Heuristic: geographic degrees + small values -> likely density;
             # projected meters (GHS-POP Mollweide) -> almost always counts.
-            units = "density" if src.crs and src.crs.is_geographic and \
-                    np.nanmax(src_arr[~mask]) < 1000 else "count"
+            hasvalid = np.any(~mask)
+            peak = float(np.max(src_arr[~mask])) if hasvalid else 0.0
+            units = "density" if (src.crs and src.crs.is_geographic and peak < 1000) \
+                    else "count"
             print(f"  --units auto -> treating source as '{units}'")
 
         if units == "count":
-            area_km2 = _pixel_area_km2(src, src_arr.shape, np)
+            area_km2 = _pixel_area_km2(win_transform, src.crs, src_arr.shape, np)
             with np.errstate(divide="ignore", invalid="ignore"):
                 density = src_arr / area_km2
         else:
@@ -94,7 +126,7 @@ def main():
 
         reproject(
             source=density, destination=dst,
-            src_transform=src.transform, src_crs=src.crs,
+            src_transform=win_transform, src_crs=src.crs,
             dst_transform=dst_transform, dst_crs="EPSG:4326",
             src_nodata=-9999.0, dst_nodata=-9999.0,
             resampling=Resampling.bilinear,
@@ -114,19 +146,19 @@ def main():
     return 0
 
 
-def _pixel_area_km2(src, shape, np):
+def _pixel_area_km2(transform, crs, shape, np):
     """Ground area (km^2) of each source pixel, for count->density conversion.
 
-    Exact & constant for equal-area/projected metre CRSs (e.g. GHS-POP Mollweide);
-    latitude-dependent for a geographic (degree) source."""
-    a = src.transform.a          # x pixel size
-    e = src.transform.e          # y pixel size (negative, north-up)
-    if src.crs and src.crs.is_geographic:
+    `transform` is the (windowed) source affine.  Exact & constant for
+    equal-area/projected metre CRSs (e.g. GHS-POP Mollweide); latitude-dependent
+    for a geographic (degree) source."""
+    a = transform.a          # x pixel size
+    e = transform.e          # y pixel size (negative, north-up)
+    if crs and crs.is_geographic:
         # degrees -> km; area varies with latitude (row).
         nrows = shape[0]
         rows = np.arange(nrows)
-        # latitude at each row centre
-        lats = src.transform.f + (rows + 0.5) * e
+        lats = transform.f + (rows + 0.5) * e          # latitude at each row centre
         dlat_km = abs(e) * 111.32
         dlon_km = abs(a) * 111.32 * np.cos(np.radians(lats))
         col_area = (dlat_km * dlon_km)                 # per-row area
