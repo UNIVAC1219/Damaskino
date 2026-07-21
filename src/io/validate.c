@@ -12,7 +12,7 @@
 #include "json.h"
 #include <stdio.h>
 #include <string.h>
-#include <strings.h>
+#include "dmk_portable.h"
 #include <stdlib.h>
 #include <math.h>
 

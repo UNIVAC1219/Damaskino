@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
+#include "dmk_portable.h"
 
 int dmk_dem_load_asc(DmkDem *d, const char *path) {
     FILE *f = fopen(path, "r");

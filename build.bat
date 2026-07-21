@@ -57,7 +57,7 @@ echo Building %OUT% ...
 if "%COMPILER%"=="cl" (
     set "CLDEF="
     if defined DEF set "CLDEF=/DUNIVAC"
-    cl /nologo /O2 /W3 /wd4244 /wd4267 %INC% !CLDEF! %SRC% /Fe:%OUT% /Fo:build\ >nul
+    cl /nologo /O2 /W3 /wd4244 /wd4267 /D_USE_MATH_DEFINES %INC% !CLDEF! %SRC% /Fe:%OUT% /Fo:build\ >nul
     if errorlevel 1 goto :fail
 ) else (
     %COMPILER% -std=c11 -O2 -Wall -Wno-unused-parameter %GINC% %DEF% %SRC% -o %OUT% -lm
@@ -75,7 +75,7 @@ set "TESTENGINE=src\engine\physics.c src\engine\fallout.c src\engine\terrain.c s
 for %%T in (test_engine test_effects test_casualties test_terrain test_lagrangian test_ensemble) do (
     if "%%T"=="test_effects" ( set "TE=src\engine\effects.c" ) else if "%%T"=="test_terrain" ( set "TE=src\engine\terrain.c src\engine\effects.c" ) else ( set "TE=%TESTENGINE%" )
     if "%COMPILER%"=="cl" (
-        cl /nologo /O2 %INC% !TE! tests\%%T.c /Fe:build\%%T.exe /Fo:build\ >nul || goto :fail
+        cl /nologo /O2 /D_USE_MATH_DEFINES %INC% !TE! tests\%%T.c /Fe:build\%%T.exe /Fo:build\ >nul || goto :fail
     ) else (
         %COMPILER% -std=c11 -O2 %GINC% !TE! tests\%%T.c -o build\%%T.exe -lm || goto :fail
     )

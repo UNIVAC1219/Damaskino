@@ -86,6 +86,19 @@ licensing are listed in [`readme.txt`](readme.txt). Rough sizes: a 60 km SRTM15+
 tile is a few MB and a single wind column is tiny, but a national WorldPop raster
 can be hundreds of MB — clip it to your area of interest first.
 
+> **Download a small box around one target, not a whole country.** The engine
+> reads a per-target DEM tile, so on OpenTopography select (or type into "Manually
+> enter selection coordinates") just a ~1–2° box around your aimpoint, e.g. for
+> Moscow `Xmin 36.5, Ymin 55.2, Xmax 38.7, Ymax 56.3`. A country-sized box across
+> Russia's far east crosses the ±180° antimeridian, which SRTM15+ rejects with
+> *"Queries across the 180 degrees longitude line are only supported for GMRT"* —
+> if you genuinely need a target east of 180°, grab a box that stays under 180 (or
+> use the GMRT dataset, which allows it). Then clip to the exact tile:
+>
+> ```bat
+> python tools\prepare_dem.py --raster moscow_srtm15.tif --lat 55.7558 --lon 37.6173 --radius-km 60 --out dem\moscow.asc
+> ```
+
 Once prepared, combine any subset of them:
 
 ```sh

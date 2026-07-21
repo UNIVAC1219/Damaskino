@@ -19,7 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <strings.h>
+#include "dmk_portable.h"
 #include <math.h>
 
 char *dmk_read_file(const char *path) {

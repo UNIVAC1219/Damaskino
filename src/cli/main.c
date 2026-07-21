@@ -32,7 +32,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
+#include "dmk_portable.h"
 
 static int write_text_file(const char *path, const char *text) {
     FILE *f = fopen(path, "wb");

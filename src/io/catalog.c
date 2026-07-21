@@ -4,7 +4,7 @@
 #include "json.h"
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
+#include "dmk_portable.h"
 #include <stdio.h>
 
 static const char *find_existing(const char *const *paths, int n) {
