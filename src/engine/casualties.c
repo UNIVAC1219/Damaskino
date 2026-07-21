@@ -169,7 +169,11 @@ void dmk_casualties_compute(const DmkModel *m, const DmkPopulation *pop,
             real_t pt_full = dmk_pfatal_thermal(cal_full);
             real_t exp_frac = opts->thermal_exposed_frac;
 
-            real_t prem = dmk_prompt_dose_rem(yield, fission, r_km) / opts->pf_prompt;
+            /* Prompt radiation attenuates along the SLANT path from the burst
+             * point; for an air burst that is sqrt(ground^2 + HOB^2). */
+            real_t hob_km = sc->weapon.hob_m / 1000.0;
+            real_t slant_km = sqrt(r_km * r_km + hob_km * hob_km);
+            real_t prem = dmk_prompt_dose_rem(yield, fission, slant_km) / opts->pf_prompt;
 
             /* Terrain masking: if the fireball is hidden behind terrain, direct
              * thermal is blocked entirely and prompt radiation drops to residual

@@ -271,8 +271,14 @@ int dmk_radiation_rings(const DmkScenario *sc, DmkEffectRing *out, int max) {
         { 100.0, "100 rem: acute radiation sickness, rarely fatal"},
     };
     int n = 0;
+    real_t hob_km = sc->weapon.hob_m / 1000.0;
     for (unsigned i = 0; i < sizeof(L)/sizeof(L[0]) && n < max; i++) {
-        real_t r = dmk_prompt_range_km(sc->weapon.yield_kt, sc->weapon.fission_fraction, L[i].rem);
+        /* dmk_prompt_range_km returns the SLANT distance for the dose; the
+         * ground-range ring is sqrt(slant^2 - HOB^2) (0 if the burst is so high
+         * the dose is never reached at the ground). */
+        real_t slant = dmk_prompt_range_km(sc->weapon.yield_kt, sc->weapon.fission_fraction, L[i].rem);
+        if (slant <= hob_km) continue;
+        real_t r = sqrt(slant * slant - hob_km * hob_km);
         if (r > 0.0) { out[n].value = L[i].rem; out[n].range_km = r; out[n].label = L[i].label; n++; }
     }
     return n;

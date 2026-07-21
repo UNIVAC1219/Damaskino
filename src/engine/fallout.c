@@ -68,7 +68,8 @@ static real_t *terrain_factor_grid(const DmkModel *model) {
     return terr;
 }
 
-static void deposit_class(DmkModel *model, int pc, const real_t *terr) {
+static void deposit_class(DmkModel *model, int pc, const real_t *terr,
+                          double *sum_plain, double *sum_weighted) {
     const DmkScenario *sc = &model->scenario;
     const DmkAtmosphere *atm = &sc->atmosphere;
     DmkGrid *g = &model->grid;
@@ -155,8 +156,13 @@ static void deposit_class(DmkModel *model, int pc, const real_t *terr) {
                 real_t cell_x = (gx - model->gz_x) * cell_km;
                 real_t dx = cell_x - land_x_km;
                 real_t dep = exp(-(dx * dx + dy * dy) * inv2s2);
-                real_t dose = base * dep;
-                if (terr) dose *= terr[(size_t)gy * g->n + gx];
+                real_t base_dose = base * dep;
+                real_t dose = terr ? base_dose * terr[(size_t)gy * g->n + gx] : base_dose;
+                /* Track plain vs terrain-weighted on-grid activity so terrain
+                 * can be renormalized to a mass-conserving redistribution. */
+                real_t ca = cell_km * cell_km;
+                *sum_plain    += base_dose * ca;
+                *sum_weighted += dose * ca;
 
                 DmkCell *c = dmk_grid_at(g, gx, gy);
                 c->dose_rate_rhr += dose;
@@ -174,8 +180,18 @@ void dmk_fallout_deposit(DmkModel *model) {
     model->activity_emitted = 0.0;
     model->activity_on_grid = 0.0;
     real_t *terr = terrain_factor_grid(model);
+    double sum_plain = 0.0, sum_weighted = 0.0;
     for (int pc = 0; pc < DMK_NUM_PARTICLE_CLASSES; pc++)
-        deposit_class(model, pc, terr);
+        deposit_class(model, pc, terr, &sum_plain, &sum_weighted);
+
+    /* Terrain is a mass-conserving REDISTRIBUTION (valleys collect what ridges
+     * shed): rescale so the terrain-weighted total equals the plain total. */
+    if (terr && sum_weighted > 0.0) {
+        real_t k = (real_t)(sum_plain / sum_weighted);
+        DmkGrid *g = &model->grid;
+        for (size_t i = 0; i < (size_t)g->n * g->n; i++)
+            g->cell[i].dose_rate_rhr *= k;
+    }
     free(terr);
 
     model->off_grid_fraction = (model->activity_emitted > 0.0)

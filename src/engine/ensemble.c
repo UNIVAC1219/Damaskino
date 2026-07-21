@@ -34,16 +34,26 @@ static void perturb(const DmkScenario *base, const DmkEnsembleSpec *sp, DmkScena
     *out = *base;
     out->weapon.yield_kt = base->weapon.yield_kt * exp(sp->yield_cv * rng_normal());
     if (out->weapon.yield_kt < 0.001) out->weapon.yield_kt = 0.001;
-    double f = base->weapon.fission_fraction + sp->fission_sd * rng_normal();
-    if (f < 0.0) f = 0.0;
-    if (f > 1.0) f = 1.0;
-    out->weapon.fission_fraction = f;
 
+    /* Fission fraction via a LOGIT-normal prior: perturb in logit space and map
+     * back, so the sample stays in (0,1) without piling probability mass at the
+     * bounds (as a normal+clamp does near 0 or 1). */
+    double f0 = base->weapon.fission_fraction;
+    if (f0 < 1e-4) f0 = 1e-4;
+    if (f0 > 1.0 - 1e-4) f0 = 1.0 - 1e-4;
+    double logit = log(f0 / (1.0 - f0)) + (sp->fission_sd / 0.22) * rng_normal();
+    out->weapon.fission_fraction = 1.0 / (1.0 + exp(-logit));
+
+    /* Wind: a dominant fully-correlated (synoptic) speed factor and direction
+     * offset shared across layers, PLUS a smaller independent per-layer
+     * component (vertical wind-shear uncertainty). */
     *spd_factor = exp(sp->wind_speed_cv * rng_normal());
     *dir_offset = sp->wind_dir_sd * rng_normal();
     for (int i = 0; i < out->atmosphere.n_layers; i++) {
-        out->atmosphere.layer[i].speed_kts *= *spd_factor;
-        double d = out->atmosphere.layer[i].direction_deg + *dir_offset;
+        double layer_spd = *spd_factor * exp(0.40 * sp->wind_speed_cv * rng_normal());
+        double layer_dir = *dir_offset + 0.40 * sp->wind_dir_sd * rng_normal();
+        out->atmosphere.layer[i].speed_kts *= layer_spd;
+        double d = out->atmosphere.layer[i].direction_deg + layer_dir;
         while (d < 0) d += 360.0;
         while (d >= 360.0) d -= 360.0;
         out->atmosphere.layer[i].direction_deg = d;
@@ -65,10 +75,14 @@ static int perturb_wind(const DmkWindColumn *base, double spd_factor, double dir
     out->nlev = n; out->loaded = 1;
     out->precip_mm_hr = base->precip_mm_hr; out->lat = base->lat; out->lon = base->lon;
     memcpy(out->source, base->source, sizeof(out->source));
-    double a = dir_offset * M_PI / 180.0, ca = cos(a), sa = sin(a);
+    out->stability_class = base->stability_class;
     for (int i = 0; i < n; i++) {
+        /* shared factor/offset plus a smaller independent per-layer component */
+        double ls = spd_factor * exp(0.10 * rng_normal());
+        double ld = (dir_offset + 6.0 * rng_normal()) * M_PI / 180.0;
+        double ca = cos(ld), sa = sin(ld);
         out->alt_m[i] = base->alt_m[i];
-        double u = base->u_ms[i] * spd_factor, v = base->v_ms[i] * spd_factor;
+        double u = base->u_ms[i] * ls, v = base->v_ms[i] * ls;
         out->u_ms[i] = u * ca - v * sa;   /* rotate transport vector */
         out->v_ms[i] = u * sa + v * ca;
     }
