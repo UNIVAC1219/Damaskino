@@ -63,7 +63,42 @@ make wasm        # (optional) compile the engine to WebAssembly (needs emscripte
 
 ---
 
-## 2. Command-line reference
+## 2. Datasets — optional real-world inputs
+
+**You do not need to download anything to run Damaskino.** With no extra files it
+uses offline models — WSEG-10 fallout transport, estimated winds aloft, and a
+uniform population density you pass with `--pop-density N` — so every example on
+this page works with zero external data. This section is only for sharpening
+specific results with real data.
+
+Three optional datasets each have a prep step and a CLI flag that consumes them.
+The Python prep tools live in `tools/`; install their deps once with
+`pip install -r requirements.txt`.
+
+| Want… | Download from | Prepare it | Feed to the engine |
+|---|---|---|---|
+| **Terrain** — line-of-sight masking (thermal/prompt) + terrain-aware fallout | SRTM15+ (OpenTopography, global ~450 m) or Copernicus GLO-30 (30 m over land), as GeoTIFF | `python tools/prepare_dem.py --raster world.tif --lat 38.9 --lon -77 --radius-km 60 --out dem/dc.asc` | `--dem dem/dc.asc` |
+| **Real weather** — modern Lagrangian fallout with true winds + rainout | ERA5 (Copernicus CDS) or GFS/GDAS (NOAA NCEP), GRIB2/NetCDF | `python tools/fetch_weather.py --grib gfs.grib2 --lat 38.9 --lon -77 --out weather/dc.json` | `--weather weather/dc.json` |
+| **Real population** — actual casualty counts instead of a flat density | WorldPop or GHS-POP population count raster | clip to an ESRI ASCII grid, e.g. `gdal_translate -of AAIGrid -projwin … pop.tif pop/dc.asc` | `--pop-asc pop/dc.asc` |
+
+The exact source URLs (OpenTopography, Copernicus CDS, NOAA NCEP, WorldPop) and
+licensing are listed in [`readme.txt`](readme.txt). Rough sizes: a 60 km SRTM15+
+tile is a few MB and a single wind column is tiny, but a national WorldPop raster
+can be hundreds of MB — clip it to your area of interest first.
+
+Once prepared, combine any subset of them:
+
+```sh
+damaskino run examples/dc_500kt_surface.json \
+    --dem dem/dc.asc --weather weather/dc.json --pop-asc pop/dc.asc --pf 10
+```
+
+Anything you omit falls back to the offline default (estimated winds, no terrain
+masking, `--pop-density` or no casualties). See §6 for what each prep tool does.
+
+---
+
+## 3. Command-line reference
 
 ```
 damaskino run <scenario.json> [options]   run a scenario, print a report, export
@@ -123,7 +158,7 @@ damaskino weapons
 
 ---
 
-## 3. Scenario JSON
+## 4. Scenario JSON
 
 ```json
 {
@@ -156,7 +191,7 @@ out-of-range lat/lon) are rejected with a message.
 
 ---
 
-## 4. Models & references
+## 5. Models & references
 
 | Effect | Model | Reference |
 |---|---|---|
@@ -174,7 +209,7 @@ WSEG-10 report (AD0261752): <https://apps.dtic.mil/sti/tr/pdf/AD0261752.pdf>.
 
 ---
 
-## 5. Data tools (`tools/`, Python — see `requirements.txt`)
+## 6. Data tools (`tools/`, Python — see `requirements.txt`)
 
 These prepare the optional real-world datasets the engine consumes. Install deps
 with `pip install -r requirements.txt`.
@@ -194,7 +229,7 @@ prebuilt; the engine loads them for `damaskino targets/weapons` and for scenario
 
 ---
 
-## 6. Web map (`web/`)
+## 7. Web map (`web/`)
 
 A self-contained MapLibre map of the engine's GeoJSON — fallout dose plume,
 blast/thermal/prompt rings, ground zero — with layer toggles, popups, a legend,
@@ -219,7 +254,7 @@ from precomputed GeoJSON.
 
 ---
 
-## 7. Repository layout
+## 8. Repository layout
 
 ```
 build.bat            Windows build (no dev prompt needed)
@@ -249,7 +284,7 @@ cross-compiles for vintage hardware.
 
 ---
 
-## 8. Tests
+## 9. Tests
 
 `make test` (Linux/macOS) or `build.bat test` (Windows) builds and runs six
 suites covering the JSON round-trip, the sub-models, effect benchmarks against
