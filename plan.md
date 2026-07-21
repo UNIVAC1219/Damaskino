@@ -4,6 +4,39 @@ Turning the WSEG-10 teletype fallout calculator into a modern, globally-applicab
 nuclear-effects simulator for civil-defense, preparedness, and education — while
 keeping the original UNIVAC 1219B build alive as a first-class citizen.
 
+---
+
+## Implementation status — ALL PHASES DELIVERED
+
+Each phase was reviewed at completion by a two-expert panel (nuclear physicist +
+nuclear event/dispersion modeler) and iterated to approval. See the README for
+usage and `docs/PHYSICS_NOTES.md` for the honest model-fidelity ledger.
+
+- **Phase 0 — Engine split** ✓ modular C core, `double`/`float` via `real_t`,
+  heap grid, JSON→GeoJSON I/O, UNIVAC-lite `-DUNIVAC` profile, bounding-box
+  deposition. *(panel-approved)*
+- **Phase 1 — Effects + casualties** ✓ blast (Kingery/cube-root, Glasstone-
+  anchored), thermal (fluence+transmittance), prompt radiation, probit/LD50
+  casualties over gridded population + sheltering + time-of-day, 1087-target
+  catalog + weapon presets. *(panel-approved)*
+- **Phase 2 — Global topography** ✓ DEM (ESRI ASCII, bilinear), terrain LOS
+  with Earth-curvature masking of thermal/prompt, elevation-modulated fallout,
+  cratering, HEMP, neutron activation. *(panel-approved)*
+- **Phase 3 — Lagrangian fallout + weather** ✓ particle dispersion with real
+  wind columns (ERA5/GFS via `fetch_weather.py`), wet deposition/rainout,
+  Freiling fractionation, protective-action dose zones, personal dose calc.
+  *(panel-approved)*
+- **Phase 3.5 — Uncertainty + validation** ✓ Monte Carlo ensembles →
+  probabilistic P90/P50/P10 contours (WSEG or Lagrangian), validation mode vs.
+  Glasstone/DS02 benchmarks. *(panel-approved)*
+- **Phase 4 — Web frontend** ✓ MapLibre map of the engine GeoJSON + WASM
+  embedding wrapper for live in-browser runs.
+
+Build: `make full` / `make univac` / `make test` (6 suites) / `make wasm` /
+`make example`. Both profiles build warning-clean.
+
+---
+
 This document records **what we're building, what we're deliberately not building,
 why, and in what order.** Each item is tagged **[CORE]** (on the critical path) or
 **[OPTIONAL]** (self-contained module that can land any time), with its data source
