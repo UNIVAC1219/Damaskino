@@ -14,6 +14,7 @@
  * }
  */
 #include "scenario.h"
+#include "catalog.h"
 #include "json.h"
 #include <stdlib.h>
 #include <string.h>
@@ -50,6 +51,50 @@ int dmk_scenario_parse(const char *json_text, DmkScenario *out,
         if (errbuf) snprintf(errbuf, errlen, "top-level value must be an object");
         json_free(root);
         return 1;
+    }
+
+    /* Optional catalog references (resolved first; explicit location/weapon
+     * objects below override them). "target": id number or name substring;
+     * "weapon_preset": weapon id string. */
+    JsonValue *tgt = json_get(root, "target");
+    if (tgt) {
+        DmkTarget *ts = NULL; int tn = 0;
+        if (dmk_load_targets(dmk_default_targets_path(), &ts, &tn) != 0) {
+            if (errbuf) snprintf(errbuf, errlen, "cannot load target catalog (data/targets.json)");
+            json_free(root); return 1;
+        }
+        int idx = -1;
+        if (tgt->type == JSON_NUMBER) idx = dmk_find_target_by_id(ts, tn, (int)tgt->u.number);
+        else if (tgt->type == JSON_STRING) idx = dmk_find_target_by_name(ts, tn, tgt->u.string);
+        if (idx < 0) {
+            if (errbuf) snprintf(errbuf, errlen, "target not found in catalog");
+            free(ts); json_free(root); return 1;
+        }
+        strncpy(out->gz.name, ts[idx].name, sizeof(out->gz.name) - 1);
+        out->gz.name[sizeof(out->gz.name)-1] = '\0';
+        out->gz.lat = ts[idx].lat;
+        out->gz.lon = ts[idx].lon;
+        if (ts[idx].yield_kt > 0.0) out->weapon.yield_kt = ts[idx].yield_kt;
+        out->weapon.is_surface_burst = ts[idx].is_surface;
+        free(ts);
+    }
+    JsonValue *wp = json_get(root, "weapon_preset");
+    if (wp && wp->type == JSON_STRING) {
+        DmkWeaponPreset *ws = NULL; int wn = 0;
+        if (dmk_load_weapons(dmk_default_weapons_path(), &ws, &wn) != 0) {
+            if (errbuf) snprintf(errbuf, errlen, "cannot load weapon catalog (data/weapons.json)");
+            json_free(root); return 1;
+        }
+        int idx = dmk_find_weapon_by_id(ws, wn, wp->u.string);
+        if (idx < 0) {
+            if (errbuf) snprintf(errbuf, errlen, "weapon preset '%s' not found", wp->u.string);
+            free(ws); json_free(root); return 1;
+        }
+        out->weapon.yield_kt = ws[idx].yield_kt;
+        out->weapon.fission_fraction = ws[idx].fission_fraction;
+        out->weapon.is_surface_burst = ws[idx].is_surface;
+        out->weapon.hob_m = ws[idx].hob_m;
+        free(ws);
     }
 
     /* location */
@@ -119,6 +164,11 @@ int dmk_scenario_parse(const char *json_text, DmkScenario *out,
     }
 
     json_free(root);
+
+    /* Air burst with unset HOB -> optimal-blast height (covers preset/target
+     * driven air bursts that didn't carry an explicit HOB). */
+    if (!out->weapon.is_surface_burst && out->weapon.hob_m <= 0.0 && out->weapon.yield_kt > 0.0)
+        out->weapon.hob_m = 540.0 * pow(out->weapon.yield_kt / 1000.0, 0.4);
 
     /* ---- Validation: reject inputs that would yield NaN/inf grids ------- */
     if (!(out->weapon.yield_kt > 0.0) || out->weapon.yield_kt > 1.0e7) {

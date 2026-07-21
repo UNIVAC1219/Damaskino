@@ -24,12 +24,16 @@ ENGINE_SRC = \
 	src/engine/engine.c \
 	src/io/output_teletype.c
 
-# Full-profile-only sources (JSON / scenario / structured output)
+# Full-profile-only sources (JSON / scenario / effects / casualties / output)
 FULL_SRC = \
 	$(ENGINE_SRC) \
+	src/engine/effects.c \
+	src/engine/casualties.c \
 	src/json/json.c \
 	src/io/output.c \
+	src/io/output_report.c \
 	src/io/scenario.c \
+	src/io/catalog.c \
 	src/cli/main.c
 
 UNIVAC_SRC = \
@@ -51,12 +55,19 @@ univac: dirs
 	$(CC) $(CFLAGS) -DUNIVAC $(UNIVAC_SRC) -o $(BUILD)/damaskino_univac $(LDLIBS)
 	@echo "Built $(BUILD)/damaskino_univac (UNIVAC-lite profile)"
 
+ENGINE_OBJS_FOR_TEST = \
+	src/engine/physics.c src/engine/fallout.c src/engine/engine.c \
+	src/engine/effects.c src/engine/casualties.c \
+	src/json/json.c src/io/output.c src/io/output_report.c \
+	src/io/scenario.c src/io/catalog.c src/io/output_teletype.c
+
 test: dirs
-	$(CC) $(CFLAGS) \
-		src/engine/physics.c src/engine/fallout.c src/engine/engine.c \
-		src/json/json.c src/io/output.c src/io/scenario.c src/io/output_teletype.c \
-		tests/test_engine.c -o $(BUILD)/test_engine $(LDLIBS)
+	$(CC) $(CFLAGS) $(ENGINE_OBJS_FOR_TEST) tests/test_engine.c -o $(BUILD)/test_engine $(LDLIBS)
+	$(CC) $(CFLAGS) src/engine/effects.c tests/test_effects.c -o $(BUILD)/test_effects $(LDLIBS)
+	$(CC) $(CFLAGS) $(ENGINE_OBJS_FOR_TEST) tests/test_casualties.c -o $(BUILD)/test_casualties $(LDLIBS)
 	./$(BUILD)/test_engine
+	./$(BUILD)/test_effects
+	./$(BUILD)/test_casualties
 
 clean:
 	rm -rf $(BUILD)
