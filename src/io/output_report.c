@@ -238,6 +238,11 @@ void dmk_write_report_geojson(const DmkModel *m, const DmkCasualtyOpts *opts,
 
     json_obj_begin(w);
     json_kv_str(w, "type", "FeatureCollection");
+    /* Foreign members: provenance + domain adequacy so the viewer can label the
+     * model and flag clipping (honesty). */
+    json_kv_str(w, "model", m->model_versions);
+    json_kv_num(w, "off_grid_fraction", m->off_grid_fraction);
+    json_kv_bool(w, "plume_clipped", m->off_grid_fraction > 0.01);
     json_key(w, "features"); json_arr_begin(w);
 
     /* GZ */

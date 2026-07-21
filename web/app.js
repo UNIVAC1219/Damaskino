@@ -77,7 +77,7 @@ function installLayers() {
     const p = f.properties, html = [];
     if (p.kind === 'ground_zero') html.push(`<b>Ground zero</b><br>${p.name || ''}<br>${(+p.yield_kt).toLocaleString()} kt`);
     else if (p.kind === 'fallout') html.push(`<b>Fallout</b><br>${(+p.dose_rate_rhr).toFixed(0)} R/hr (H+1)`);
-    else html.push(`<b>${p.label || p.kind}</b>${p.radius_km ? '<br>' + (+p.radius_km).toFixed(2) + ' km' : ''}`);
+    else html.push(`<b>${p.label || p.kind}</b>${p.radius_km ? '<br>' + (+p.radius_km).toFixed(1) + ' km' : ''}`);
     popup.setLngLat(e.lngLat).setHTML(html.join('')).addTo(map);
   });
   ['fallout-fill', 'blast-rings', 'thermal-rings', 'prompt-rings', 'gz'].forEach(l => {
@@ -105,7 +105,12 @@ function render(fc) {
   map.getSource('dmk').setData(fc);
   fitTo(fc);
   const n = (fc.features || []).length;
-  setStatus(`${n.toLocaleString()} features`);
+  // Honesty: name the fallout model and flag domain clipping when present.
+  let model = 'WSEG';
+  if (typeof fc.model === 'string') model = /Lagrangian/.test(fc.model) ? 'Lagrangian+wind' : 'WSEG';
+  let msg = `${n.toLocaleString()} features · fallout: ${model}`;
+  if (fc.plume_clipped) msg += ' · ⚠ plume clipped by domain (extents are lower bounds)';
+  setStatus(msg);
 }
 
 function currentScenario() {

@@ -76,8 +76,10 @@
   </div>
 
   <div class="disc">Analytic effect estimates for preparedness/education. Not operational.
-  Build the live engine with <code>make wasm</code>; without it, this loads
-  precomputed GeoJSON.</div>
+  This map shows a single deterministic run (WSEG fallout unless a weather file is
+  used via the CLI). For the modern Lagrangian model use <code>--weather</code>, and
+  for probabilistic P90/P50/P10 bands use <code>damaskino ensemble</code>. Build the
+  live engine with <code>make wasm</code>; otherwise this loads precomputed GeoJSON.</div>
 </div>
 
 <script src="vendor/maplibre-gl.js"></script>
