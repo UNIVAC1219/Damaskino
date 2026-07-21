@@ -206,6 +206,46 @@ int dmk_thermal_rings(const DmkScenario *sc, real_t visibility_km,
     return n;
 }
 
+/* ====================================================================== */
+/* Cratering                                                              */
+/* ====================================================================== */
+DmkCrater dmk_crater(real_t yield_kt, int is_surface_burst) {
+    DmkCrater c = {0.0, 0.0};
+    if (!is_surface_burst || yield_kt <= 0.0) return c;
+    /* Apparent crater radius scales ~ W^0.3 in dry soil, anchored to ~200 m
+     * radius for 1 Mt; depth ~ 0.3 * radius. */
+    c.radius_m = 200.0 * pow(yield_kt / 1000.0, 0.3);
+    c.depth_m  = 0.30 * c.radius_m;
+    return c;
+}
+
+/* ====================================================================== */
+/* High-altitude EMP                                                      */
+/* ====================================================================== */
+real_t dmk_hemp_footprint_km(real_t burst_alt_m) {
+    if (burst_alt_m < 30000.0) return 0.0;  /* HEMP regime is high altitude */
+    /* Tangent radius to the horizon from altitude h: sqrt(2 R_e h + h^2). */
+    real_t R = DMK_EARTH_RADIUS_M;
+    return sqrt(2.0 * R * burst_alt_m + burst_alt_m * burst_alt_m) / 1000.0;
+}
+real_t dmk_hemp_peak_field_kvm(void) { return 50.0; }  /* nominal E1 peak */
+
+/* ====================================================================== */
+/* Neutron activation                                                     */
+/* ====================================================================== */
+real_t dmk_activation_dose_h1_rhr(real_t yield_kt, real_t fission_fraction, real_t range_km) {
+    if (yield_kt <= 0.0 || range_km <= 0.0) return 0.0;
+    /* Soil activation tracks the initial neutron fluence ~ fission yield with
+     * the neutron relaxation length; converted to an induced H+1 gamma dose
+     * rate. Empirically a minor contributor vs. fallout for surface bursts but
+     * significant for low-fallout (air/enhanced-radiation) bursts. Anchored so
+     * a 1 kt fission burst gives ~O(100) R/hr at H+1 within a few hundred m. */
+    real_t R = range_km * 1000.0;
+    real_t f = fission_fraction; if (f < 0.0) f = 0.0; if (f > 1.0) f = 1.0;
+    real_t K = 4.0e7;
+    return f * yield_kt * K * exp(-R / DMK_PROMPT_LAMBDA_N) / (R * R);
+}
+
 int dmk_radiation_rings(const DmkScenario *sc, DmkEffectRing *out, int max) {
     static const struct { real_t rem; const char *label; } L[] = {
         {1000.0, "1000 rem: rapidly fatal (LD100 without care)"},

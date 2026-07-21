@@ -23,6 +23,7 @@
 #include "effects.h"
 #include "casualties.h"
 #include "catalog.h"
+#include "terrain.h"
 #include "json.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,7 +40,7 @@ static int write_text_file(const char *path, const char *text) {
 
 static int cmd_run(int argc, char **argv) {
     const char *scenario_path = NULL, *json_out = NULL, *geojson_out = NULL;
-    const char *pop_asc = NULL;
+    const char *pop_asc = NULL, *dem_path = NULL;
     real_t threshold = 1.0, pop_density = 0.0;
     int quiet = 0, want_casualties = 0;
     DmkCasualtyOpts opts; dmk_casualty_opts_defaults(&opts);
@@ -52,6 +53,7 @@ static int cmd_run(int argc, char **argv) {
         else if (!strcmp(argv[i], "--visibility") && i+1 < argc) opts.visibility_km = atof(argv[++i]);
         else if (!strcmp(argv[i], "--pop-density") && i+1 < argc) { pop_density = atof(argv[++i]); want_casualties = 1; }
         else if (!strcmp(argv[i], "--pop-asc") && i+1 < argc) { pop_asc = argv[++i]; want_casualties = 1; }
+        else if (!strcmp(argv[i], "--dem") && i+1 < argc) dem_path = argv[++i];
         else if (!strcmp(argv[i], "--pf") && i+1 < argc) opts.pf_fallout = atof(argv[++i]);
         else if (!strcmp(argv[i], "--pf-prompt") && i+1 < argc) opts.pf_prompt = atof(argv[++i]);
         else if (!strcmp(argv[i], "--thermal-exposed") && i+1 < argc) opts.thermal_exposed_frac = atof(argv[++i]);
@@ -75,12 +77,21 @@ static int cmd_run(int argc, char **argv) {
     }
     free(text);
 
+    /* Optional terrain DEM */
+    DmkDem dem; int have_dem = 0;
+    if (dem_path) {
+        if (dmk_dem_load_asc(&dem, dem_path) != 0)
+            fprintf(stderr, "WARNING: could not load DEM %s; using flat terrain\n", dem_path);
+        else { have_dem = 1; if (!quiet) fprintf(stderr, "Loaded DEM %s (%dx%d)\n", dem_path, dem.ncols, dem.nrows); }
+    }
+
     DmkModel model;
-    int rc = dmk_run(&sc, &model);
+    int rc = dmk_run_ex(&sc, have_dem ? &dem : NULL, &model);
     if (rc != 0) {
         const char *why = (rc == -3) ? "invalid physical parameters"
                         : (rc == -2) ? "grid allocation failed" : "bad arguments";
         fprintf(stderr, "ERROR: engine failed (code %d: %s)\n", rc, why);
+        if (have_dem) dmk_dem_free(&dem);
         return 1;
     }
 
@@ -128,6 +139,7 @@ static int cmd_run(int argc, char **argv) {
     }
 
     if (have_pop) dmk_pop_free(&pop);
+    if (have_dem) dmk_dem_free(&dem);
     dmk_model_free(&model);
     return 0;
 }
@@ -185,8 +197,9 @@ int main(int argc, char **argv) {
             "Damaskino %s - nuclear-effects simulator (civil-defense / education)\n"
             "Usage:\n"
             "  %s run <scenario.json> [--json f] [--geojson f] [--pop-density N]\n"
-            "     [--pop-asc f] [--pf N] [--visibility KM] [--exposure H]\n"
-            "     [--thermal-exposed F] [--time day|night] [--threshold R/hr] [--quiet]\n"
+            "     [--pop-asc f] [--dem f.asc] [--pf N] [--pf-prompt N] [--visibility KM]\n"
+            "     [--exposure H] [--thermal-exposed F] [--time day|night]\n"
+            "     [--threshold R/hr] [--quiet]\n"
             "  %s targets [--search TERM] [--state ST] [--limit N]\n"
             "  %s weapons\n"
             "  %s version\n"

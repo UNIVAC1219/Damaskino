@@ -13,6 +13,7 @@
  */
 #include "casualties.h"
 #include "effects.h"
+#include "terrain.h"
 #include "geo.h"
 #include <math.h>
 #include <stdio.h>
@@ -129,6 +130,12 @@ void dmk_casualties_compute(const DmkModel *m, const DmkPopulation *pop,
     int surface = sc->weapon.is_surface_burst;
     real_t fission = sc->weapon.fission_fraction;
 
+    /* Terrain line-of-sight: emitter is the fireball at the burst point. */
+    int use_terrain = dmk_dem_ready(m->dem);
+    real_t fireball_m = 55.0 * pow(yield, 0.4);          /* nominal fireball radius */
+    real_t burst_h = surface ? fireball_m : sc->weapon.hob_m;
+    real_t e_alt_asl = (use_terrain ? dmk_dem_elev(m->dem, sc->gz.lat, sc->gz.lon) : 0.0) + burst_h;
+
     for (int gy = 0; gy < m->grid.n; gy++) {
         for (int gx = 0; gx < m->grid.n; gx++) {
             real_t east = (gx - m->gz_x) * cell_km;
@@ -155,6 +162,15 @@ void dmk_casualties_compute(const DmkModel *m, const DmkPopulation *pop,
             real_t exp_frac = opts->thermal_exposed_frac;
 
             real_t prem = dmk_prompt_dose_rem(yield, fission, r_km) / opts->pf_prompt;
+
+            /* Terrain masking: if the fireball is hidden behind terrain, direct
+             * thermal is blocked entirely and prompt radiation drops to residual
+             * skyshine (~10%). */
+            if (use_terrain && r_km > 0.05) {
+                int los = dmk_terrain_los(m->dem, sc->gz.lat, sc->gz.lon, e_alt_asl,
+                                          lat, lon, 1.7);
+                if (!los) { exp_frac = 0.0; prem *= 0.1; }
+            }
             real_t pp = dmk_pfatal_radiation(prem);
 
             const DmkCell *c = &m->grid.cell[(size_t)gy * m->grid.n + gx];

@@ -24,6 +24,8 @@
 /* Wind altitude layers, feet. Default profile; overridable per scenario. */
 #define DMK_NUM_WIND_LAYERS 6
 
+struct DmkDem;  /* forward decl; see src/engine/terrain.h */
+
 /* ---- Scenario inputs -------------------------------------------------- */
 
 typedef struct {
@@ -99,6 +101,7 @@ typedef struct {
     DmkParticles particles;
     DmkGrid      grid;
     int          gz_x, gz_y;  /* ground zero grid coordinates */
+    const struct DmkDem *dem; /* optional terrain (NULL = flat) */
     /* Activity accounting (fallout mass conservation / domain adequacy) */
     real_t       activity_emitted;   /* total activity released into the column */
     real_t       activity_on_grid;   /* activity deposited within the grid */
@@ -119,6 +122,9 @@ typedef struct {
 /* Allocate and run the full model for a scenario. Returns 0 on success.
  * On success, caller must call dmk_model_free(model). */
 int  dmk_run(const DmkScenario *scenario, DmkModel *model);
+/* As dmk_run, but attaches an optional terrain DEM (may be NULL) that
+ * modulates fallout deposition. */
+int  dmk_run_ex(const DmkScenario *scenario, const struct DmkDem *dem, DmkModel *model);
 void dmk_model_free(DmkModel *model);
 
 /* Grid helpers */

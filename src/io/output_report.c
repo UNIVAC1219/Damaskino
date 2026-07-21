@@ -59,6 +59,30 @@ void dmk_write_report_json(const DmkModel *m, const DmkPopulation *pop,
         write_rings(w, "blast", "overpressure_psi", br, nb);
         write_rings(w, "thermal", "fluence_cal_cm2", tr, nt);
         write_rings(w, "prompt_radiation", "dose_rem", rr, nr);
+
+        /* Cratering (surface bursts) */
+        DmkCrater cr = dmk_crater(sc->weapon.yield_kt, sc->weapon.is_surface_burst);
+        if (cr.radius_m > 0.0) {
+            json_key(w, "crater"); json_obj_begin(w);
+                json_kv_num(w, "radius_m", cr.radius_m);
+                json_kv_num(w, "depth_m", cr.depth_m);
+            json_obj_end(w);
+        }
+        /* High-altitude EMP */
+        real_t emp_fp = dmk_hemp_footprint_km(sc->weapon.hob_m);
+        if (emp_fp > 0.0) {
+            json_key(w, "hemp"); json_obj_begin(w);
+                json_kv_num(w, "footprint_radius_km", emp_fp);
+                json_kv_num(w, "peak_field_kv_m", dmk_hemp_peak_field_kvm());
+            json_obj_end(w);
+        }
+        /* Neutron activation near GZ */
+        json_key(w, "neutron_activation"); json_obj_begin(w);
+            json_kv_num(w, "dose_h1_rhr_at_0.5km",
+                dmk_activation_dose_h1_rhr(sc->weapon.yield_kt, sc->weapon.fission_fraction, 0.5));
+            json_kv_num(w, "dose_h1_rhr_at_1km",
+                dmk_activation_dose_h1_rhr(sc->weapon.yield_kt, sc->weapon.fission_fraction, 1.0));
+        json_obj_end(w);
     json_obj_end(w);
 
     /* Fallout summary */
@@ -254,6 +278,15 @@ void dmk_write_report_teletype(const DmkModel *m, const DmkCasualtyOpts *opts,
     fprintf(fp, "\n*** INITIAL NUCLEAR RADIATION ***\n");
     for (int i = 0; i < nr; i++)
         fprintf(fp, "  %5.0f rem : %6.2f km  | %s\n", (double)rr[i].value, (double)rr[i].range_km, rr[i].label);
+
+    DmkCrater cr = dmk_crater(sc->weapon.yield_kt, sc->weapon.is_surface_burst);
+    if (cr.radius_m > 0.0)
+        fprintf(fp, "\n*** CRATER ***\n  radius %.0f m, depth %.0f m (dry soil)\n",
+                (double)cr.radius_m, (double)cr.depth_m);
+    real_t emp_fp = dmk_hemp_footprint_km(sc->weapon.hob_m);
+    if (emp_fp > 0.0)
+        fprintf(fp, "\n*** HIGH-ALTITUDE EMP ***\n  footprint radius %.0f km, peak E1 ~%.0f kV/m\n",
+                (double)emp_fp, (double)dmk_hemp_peak_field_kvm());
 
     if (cas) {
         fprintf(fp, "\n*** CASUALTY ESTIMATE ***\n");

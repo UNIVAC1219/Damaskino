@@ -43,6 +43,10 @@ static int grid_alloc(DmkGrid *g, int n, real_t cell_km) {
 }
 
 int dmk_run(const DmkScenario *scenario, DmkModel *model) {
+    return dmk_run_ex(scenario, NULL, model);
+}
+
+int dmk_run_ex(const DmkScenario *scenario, const struct DmkDem *dem, DmkModel *model) {
     if (!scenario || !model) return -1;
 
     /* Defensive parameter guard: reject values that would produce NaN/inf
@@ -55,6 +59,7 @@ int dmk_run(const DmkScenario *scenario, DmkModel *model) {
 
     memset(model, 0, sizeof(*model));
     model->scenario = *scenario;
+    model->dem = dem;
 
     /* Derive analysis range if unset. */
     if (model->scenario.cfg.max_range_km <= 0.0)
@@ -76,8 +81,8 @@ int dmk_run(const DmkScenario *scenario, DmkModel *model) {
     dmk_fallout_deposit(model);
 
     snprintf(model->model_versions, sizeof(model->model_versions),
-             "engine=%s;fallout=WSEG-10(ported);cloud=WSEG-10;decay=Way-Wigner-1.2",
-             DMK_VERSION_STRING);
+             "engine=%s;fallout=WSEG-10(ported);cloud=WSEG-10;decay=Way-Wigner-1.2;terrain=%s",
+             DMK_VERSION_STRING, dem ? "DEM" : "flat");
     return 0;
 }
 

@@ -21,6 +21,7 @@ BUILD    = build
 ENGINE_SRC = \
 	src/engine/physics.c \
 	src/engine/fallout.c \
+	src/engine/terrain.c \
 	src/engine/engine.c \
 	src/io/output_teletype.c
 
@@ -56,7 +57,7 @@ univac: dirs
 	@echo "Built $(BUILD)/damaskino_univac (UNIVAC-lite profile)"
 
 ENGINE_OBJS_FOR_TEST = \
-	src/engine/physics.c src/engine/fallout.c src/engine/engine.c \
+	src/engine/physics.c src/engine/fallout.c src/engine/terrain.c src/engine/engine.c \
 	src/engine/effects.c src/engine/casualties.c \
 	src/json/json.c src/io/output.c src/io/output_report.c \
 	src/io/scenario.c src/io/catalog.c src/io/output_teletype.c
@@ -65,9 +66,11 @@ test: dirs
 	$(CC) $(CFLAGS) $(ENGINE_OBJS_FOR_TEST) tests/test_engine.c -o $(BUILD)/test_engine $(LDLIBS)
 	$(CC) $(CFLAGS) src/engine/effects.c tests/test_effects.c -o $(BUILD)/test_effects $(LDLIBS)
 	$(CC) $(CFLAGS) $(ENGINE_OBJS_FOR_TEST) tests/test_casualties.c -o $(BUILD)/test_casualties $(LDLIBS)
+	$(CC) $(CFLAGS) src/engine/terrain.c src/engine/effects.c tests/test_terrain.c -o $(BUILD)/test_terrain $(LDLIBS)
 	./$(BUILD)/test_engine
 	./$(BUILD)/test_effects
 	./$(BUILD)/test_casualties
+	./$(BUILD)/test_terrain
 
 clean:
 	rm -rf $(BUILD)

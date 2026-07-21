@@ -55,4 +55,22 @@ int dmk_blast_rings(const DmkScenario *sc, DmkEffectRing *out, int max);
 int dmk_thermal_rings(const DmkScenario *sc, real_t visibility_km, DmkEffectRing *out, int max);
 int dmk_radiation_rings(const DmkScenario *sc, DmkEffectRing *out, int max);
 
+/* ---- Cratering (surface bursts) --------------------------------------- */
+typedef struct { real_t radius_m; real_t depth_m; } DmkCrater;
+/* Apparent crater in soil; zero for air bursts. Scales ~ W^0.3, anchored to a
+ * ~200 m radius / ~60 m depth for a 1 Mt surface burst (Glasstone & Dolan). */
+DmkCrater dmk_crater(real_t yield_kt, int is_surface_burst);
+
+/* ---- High-altitude EMP (HEMP) ----------------------------------------- */
+/* Ground footprint radius (km) illuminated by E1 from a burst at burst_alt_m;
+ * this is the tangent-horizon radius sqrt(2 R_e h). Returns 0 below ~30 km
+ * (bursts there produce local source-region EMP instead). */
+real_t dmk_hemp_footprint_km(real_t burst_alt_m);
+real_t dmk_hemp_peak_field_kvm(void);   /* nominal E1 peak, ~50 kV/m */
+
+/* ---- Neutron activation ----------------------------------------------- */
+/* Induced-activity gamma dose rate (R/hr) at H+1 from soil activation near GZ,
+ * a residual-radiation source distinct from fission-product fallout. */
+real_t dmk_activation_dose_h1_rhr(real_t yield_kt, real_t fission_fraction, real_t range_km);
+
 #endif /* DMK_EFFECTS_H */

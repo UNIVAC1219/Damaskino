@@ -51,7 +51,9 @@ damaskino weapons
 | `--geojson FILE` | GeoJSON: effect-ring circles + fallout cells |
 | `--pop-density N` | uniform population (people/km²) → enables casualties |
 | `--pop-asc FILE` | population raster (ESRI ASCII grid; WorldPop/GHS-POP) |
-| `--pf N` | sheltering protection factor (fallout/prompt dose ÷ N) |
+| `--dem FILE` | terrain DEM (ESRI ASCII grid) → line-of-sight + fallout |
+| `--pf N` | fallout sheltering protection factor (dose ÷ N) |
+| `--pf-prompt N` | prompt-radiation protection factor (default 1) |
 | `--thermal-exposed F` | fraction with line-of-sight to the fireball |
 | `--exposure H` | fallout dose integration window (hours, default 48) |
 | `--visibility KM` | atmospheric visibility for thermal (default 20) |
@@ -91,6 +93,13 @@ estimated) or an explicit `layers` array. Invalid inputs (yield ≤ 0, ref_time
 | Prompt radiation | neutron+gamma, dual exponential attenuation, 1/R² | Glasstone; Fetter et al. 1990 |
 | Fallout | WSEG-10 transport + Gaussian deposition (Lagrangian rewrite in Phase 3) | WSEG Report #10 (1959) |
 | Casualties | probit/LD50 for blast, thermal, radiation; sheltering; Way-Wigner dose | Glasstone; open lethality literature |
+| Terrain | global DEM; line-of-sight masking (thermal/prompt) w/ Earth curvature; valley/ridge fallout | SRTM15+ / Copernicus |
+| Cratering | apparent crater radius/depth, surface bursts (~W^0.3) | Glasstone & Dolan |
+| HEMP | high-altitude E1 tangent-horizon footprint | Karzas-Latter |
+| Activation | soil neutron-activation induced dose near GZ | — |
+
+Provide terrain with `--dem tile.asc`; build a tile from a global DEM with
+`tools/prepare_dem.py` (SRTM15+ / Copernicus).
 
 ## Data pipeline
 

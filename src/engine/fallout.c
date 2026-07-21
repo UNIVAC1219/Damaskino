@@ -12,7 +12,10 @@
  * remains the lite / offline fallback.
  */
 #include "damaskino.h"
+#include "terrain.h"
+#include "geo.h"
 #include <math.h>
+#include <stdlib.h>
 
 #define DMK_NUM_RELEASE_POINTS 24     /* vertical release points in the column */
 #define DMK_SIGMA_CUTOFF       4.0    /* deposit within +/- this many sigma */
@@ -28,7 +31,44 @@ static int clampi(int v, int lo, int hi) {
     return v < lo ? lo : (v > hi ? hi : v);
 }
 
-static void deposit_class(DmkModel *model, int pc) {
+/* Precompute a per-cell terrain deposition modifier: fallout concentrates in
+ * valleys (local low spots) and is reduced on ridges. Returns a malloc'd
+ * n*n array of factors (~0.8..1.3), or NULL if no DEM. */
+static real_t *terrain_factor_grid(const DmkModel *model) {
+    const DmkDem *dem = model->dem;
+    if (!dmk_dem_ready(dem)) return NULL;
+    int n = model->grid.n;
+    real_t cell_km = model->grid.cell_km;
+    real_t *terr = (real_t *)malloc((size_t)n * n * sizeof(real_t));
+    if (!terr) return NULL;
+    const DmkScenario *sc = &model->scenario;
+    for (int gy = 0; gy < n; gy++) {
+        for (int gx = 0; gx < n; gx++) {
+            real_t east = (gx - model->gz_x) * cell_km;
+            real_t north = (gy - model->gz_y) * cell_km;
+            real_t lat, lon; dmk_offset_to_latlon(sc->gz.lat, sc->gz.lon, east, north, &lat, &lon);
+            real_t e  = dmk_dem_elev(dem, lat, lon);
+            real_t dkm = cell_km;
+            real_t latn, lonn;
+            dmk_offset_to_latlon(sc->gz.lat, sc->gz.lon, east, north + dkm, &latn, &lonn);
+            real_t en = dmk_dem_elev(dem, latn, lonn);
+            dmk_offset_to_latlon(sc->gz.lat, sc->gz.lon, east, north - dkm, &latn, &lonn);
+            real_t es = dmk_dem_elev(dem, latn, lonn);
+            dmk_offset_to_latlon(sc->gz.lat, sc->gz.lon, east + dkm, north, &latn, &lonn);
+            real_t ee = dmk_dem_elev(dem, latn, lonn);
+            dmk_offset_to_latlon(sc->gz.lat, sc->gz.lon, east - dkm, north, &latn, &lonn);
+            real_t ew = dmk_dem_elev(dem, latn, lonn);
+            real_t local_avg = 0.25 * (en + es + ee + ew);
+            real_t f = 1.0;
+            if (e < local_avg - 30.0) f = 1.3;      /* valley: collects fallout */
+            else if (e > local_avg + 60.0) f = 0.8; /* ridge: sheds fallout */
+            terr[(size_t)gy * n + gx] = f;
+        }
+    }
+    return terr;
+}
+
+static void deposit_class(DmkModel *model, int pc, const real_t *terr) {
     const DmkScenario *sc = &model->scenario;
     const DmkAtmosphere *atm = &sc->atmosphere;
     DmkGrid *g = &model->grid;
@@ -116,6 +156,7 @@ static void deposit_class(DmkModel *model, int pc) {
                 real_t dx = cell_x - land_x_km;
                 real_t dep = exp(-(dx * dx + dy * dy) * inv2s2);
                 real_t dose = base * dep;
+                if (terr) dose *= terr[(size_t)gy * g->n + gx];
 
                 DmkCell *c = dmk_grid_at(g, gx, gy);
                 c->dose_rate_rhr += dose;
@@ -132,8 +173,10 @@ static void deposit_class(DmkModel *model, int pc) {
 void dmk_fallout_deposit(DmkModel *model) {
     model->activity_emitted = 0.0;
     model->activity_on_grid = 0.0;
+    real_t *terr = terrain_factor_grid(model);
     for (int pc = 0; pc < DMK_NUM_PARTICLE_CLASSES; pc++)
-        deposit_class(model, pc);
+        deposit_class(model, pc, terr);
+    free(terr);
 
     model->off_grid_fraction = (model->activity_emitted > 0.0)
         ? 1.0 - model->activity_on_grid / model->activity_emitted
