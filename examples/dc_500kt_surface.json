@@ -1,0 +1,8 @@
+{
+  "location": { "name": "Washington D.C.", "lat": 38.8951, "lon": -77.0364 },
+  "weapon":   { "yield_kt": 500, "burst": "surface", "fission_fraction": 0.5 },
+  "wind": {
+    "surface": { "speed_kts": 15, "direction_deg": 270 }
+  },
+  "grid": { "n": 256, "cell_km": 1.0, "ref_time_hr": 1.0 }
+}
