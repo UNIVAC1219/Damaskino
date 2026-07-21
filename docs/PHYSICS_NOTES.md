@@ -24,6 +24,45 @@ the relevant rewrite.
 - **Geographic projection clamping.** `dmk_offset_to_latlon` clamps latitude to
   [-90,90] and wraps longitude to [-180,180], so output is always valid GeoJSON.
 
+## Phase 1 — panel items
+
+Resolved in Phase 1 (post-panel):
+- **Thermal exposure is now a population split**, not a fluence multiplier:
+  the exposed fraction sees full fluence, the rest ~none, combined at the
+  probit step. Removes the ~24% bias both panels flagged.
+- **Separate protection factors** for prompt (`pf_prompt`) vs fallout
+  (`pf_fallout`) dose — prompt neutron+gamma is far harder to shield.
+- **Injuries** now use continuous per-mechanism dose-response probits (blast
+  ~2 psi, thermal ~3.5 cal/cm^2, radiation ~150 rem) among survivors, replacing
+  the flat 0.6x heuristic.
+- **Uniform population caveat** emitted (stderr note + JSON `population_caveat`
+  + `population_mode`), since uniform density fills the whole domain.
+
+Deferred (raised by the panel):
+- **Mechanism independence** (`surv = product of (1-P)`) slightly over-counts:
+  people near GZ receive all mechanisms (positively correlated exposures), so
+  combined fatalities are a mild upper bound. Acceptable for this tool class.
+- **Prompt slant range = ground range** (ignores HOB geometry); fold burst
+  height in when terrain/LOS lands in Phase 2.
+- **Thermal transmittance is conservative.** `tau = exp(-3.912 R/V)` uses the
+  raw Koschmieder visible-contrast extinction as a beam transmittance, ignoring
+  the large forward-scattered contribution to thermal *fluence*. Burn radii /
+  thermal casualties run ~20-40% short at moderate visibility (1 Mt 3rd-degree
+  8.3 km here vs. ~11-13 km with scattering build-up). Replace with an
+  atmospheric-transmission model with build-up in **Phase 3.5**.
+- **Thermal exposure as population partition, not fluence multiplier.**
+  `thermal_exposed_frac` should split the population (exposed at full fluence
+  vs. shielded at ~0) rather than halving everyone's fluence, which biases the
+  nonlinear probit. *(Fixing in Phase 1 once modeler concurs.)*
+- **Prompt-radiation linear yield scaling** is simplified (real transport is
+  sub-linear at high yield). Immaterial because for yields >~50 kt the prompt
+  lethal radius lies inside the blast lethal radius; anchor placed at 15 kt
+  where prompt dominates. Revisit with a transport-based table if needed.
+- **HOB slant-range geometry** ignored in Phase 1 thermal/blast (ground range
+  used). Full height-of-burst Mach-stem surface scoped for Phase 3.5.
+- **Blast LD50 = 10 psi** is a building-collapse-dominated consequence anchor;
+  revisit against ~5 psi urban-collapse studies with the sheltering model.
+
 ## Deferred to Phase 3 (Lagrangian fallout rewrite)
 
 - **Continuous settling curve.** The piecewise Stokes / Schiller-Naumann /

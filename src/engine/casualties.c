@@ -81,7 +81,8 @@ real_t dmk_pop_density(const DmkPopulation *p, real_t lat, real_t lon) {
 
 /* ---- Options --------------------------------------------------------- */
 void dmk_casualty_opts_defaults(DmkCasualtyOpts *o) {
-    o->protection_factor = 1.0;    /* unsheltered */
+    o->pf_fallout = 1.0;           /* unsheltered */
+    o->pf_prompt = 1.0;            /* prompt radiation barely shielded by default */
     o->thermal_exposed_frac = 0.5; /* half have direct LOS to the fireball */
     o->exposure_hours = 48.0;
     o->visibility_km = 20.0;
@@ -95,6 +96,13 @@ static real_t logistic_ln(real_t x, real_t x50, real_t k) {
 real_t dmk_pfatal_blast(real_t psi)      { return logistic_ln(psi, 10.0, 3.17); }
 real_t dmk_pfatal_thermal(real_t cal)    { return logistic_ln(cal, 12.0, 2.70); }
 real_t dmk_pfatal_radiation(real_t rem)  { return logistic_ln(rem, 450.0, 4.30); }
+
+/* Injury thresholds (non-fatal casualties): blast ~50% injured at 2 psi
+ * (debris/translation), thermal ~50% at 3.5 cal/cm^2 (2nd-degree), radiation
+ * ~50% at 150 rem (acute radiation sickness). */
+real_t dmk_pinjury_blast(real_t psi)     { return logistic_ln(psi, 2.0, 2.5); }
+real_t dmk_pinjury_thermal(real_t cal)   { return logistic_ln(cal, 3.5, 2.5); }
+real_t dmk_pinjury_radiation(real_t rem) { return logistic_ln(rem, 150.0, 3.0); }
 
 /* Accumulated fallout dose (R ~ rem) from a cell's H+1 dose rate, integrated
  * from arrival to the exposure window using the Way-Wigner t^-1.2 law:
@@ -134,38 +142,47 @@ void dmk_casualties_compute(const DmkModel *m, const DmkPopulation *pop,
             real_t people = density * cell_area;
             out->population_in_domain += people;
 
-            /* Per-mechanism lethality at this cell. */
+            /* Per-mechanism dose/intensity at this cell. */
             real_t psi = dmk_blast_overpressure_psi(yield, surface, r_km);
             real_t pb = dmk_pfatal_blast(psi);
 
-            real_t cal = dmk_thermal_fluence(yield, surface, r_km, opts->visibility_km)
-                       * opts->thermal_exposed_frac;
-            real_t pt = dmk_pfatal_thermal(cal);
+            /* Thermal is a POPULATION SPLIT: a fraction have line-of-sight to
+             * the fireball at full fluence; the rest (indoors/shadowed) get
+             * ~none. Applying the fraction to fluence would bias the nonlinear
+             * probit, so we partition at the combination step below. */
+            real_t cal_full = dmk_thermal_fluence(yield, surface, r_km, opts->visibility_km);
+            real_t pt_full = dmk_pfatal_thermal(cal_full);
+            real_t exp_frac = opts->thermal_exposed_frac;
 
-            real_t prem = dmk_prompt_dose_rem(yield, fission, r_km) / opts->protection_factor;
+            real_t prem = dmk_prompt_dose_rem(yield, fission, r_km) / opts->pf_prompt;
             real_t pp = dmk_pfatal_radiation(prem);
 
             const DmkCell *c = &m->grid.cell[(size_t)gy * m->grid.n + gx];
             real_t frem = fallout_accumulated_dose(c->dose_rate_rhr, c->arrival_hr,
                                                    opts->exposure_hours,
-                                                   opts->protection_factor);
+                                                   opts->pf_fallout);
             real_t pf = dmk_pfatal_radiation(frem);
 
-            /* Combined survival across independent mechanisms. */
-            real_t surv = (1.0 - pb) * (1.0 - pt) * (1.0 - pp) * (1.0 - pf);
-            real_t p_fatal = 1.0 - surv;
-            out->fatalities += people * p_fatal;
+            /* Combined survival across independent mechanisms, thermal applied
+             * only to the exposed sub-population. */
+            real_t non_thermal_surv = (1.0 - pb) * (1.0 - pp) * (1.0 - pf);
+            real_t surv = non_thermal_surv * (exp_frac * (1.0 - pt_full) + (1.0 - exp_frac));
+            out->fatalities += people * (1.0 - surv);
 
             /* Attribution (non-exclusive expected counts). */
             out->fatal_blast   += people * pb;
-            out->fatal_thermal += people * pt;
+            out->fatal_thermal += people * exp_frac * pt_full;
             out->fatal_prompt  += people * pp;
             out->fatal_fallout += people * pf;
 
-            /* Injuries: affected but surviving. Thresholds: 1 psi, 1st-degree
-             * burn (2.5 cal), 100 rem prompt, 100 R fallout. */
-            int affected = (psi >= 1.0) || (cal >= 2.5) || (prem >= 100.0) || (frem >= 100.0);
-            if (affected) out->injuries += people * surv * 0.6; /* ~60% of survivors in-zone injured */
+            /* Injuries among survivors: continuous per-mechanism dose-response
+             * (not a flat fraction), thermal weighted by the exposed fraction. */
+            real_t ib = dmk_pinjury_blast(psi);
+            real_t it = exp_frac * dmk_pinjury_thermal(cal_full);
+            real_t ip = dmk_pinjury_radiation(prem);
+            real_t ifa = dmk_pinjury_radiation(frem);
+            real_t p_injury = 1.0 - (1.0 - ib) * (1.0 - it) * (1.0 - ip) * (1.0 - ifa);
+            out->injuries += people * surv * p_injury;
         }
     }
 }

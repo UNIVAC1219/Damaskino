@@ -94,11 +94,20 @@ void dmk_write_report_json(const DmkModel *m, const DmkPopulation *pop,
         json_key(w, "casualties"); json_obj_begin(w);
             if (opts) {
                 json_key(w, "assumptions"); json_obj_begin(w);
-                    json_kv_num(w, "protection_factor", opts->protection_factor);
+                    json_kv_num(w, "pf_fallout", opts->pf_fallout);
+                    json_kv_num(w, "pf_prompt", opts->pf_prompt);
                     json_kv_num(w, "thermal_exposed_fraction", opts->thermal_exposed_frac);
                     json_kv_num(w, "exposure_hours", opts->exposure_hours);
-                    if (pop) json_kv_num(w, "population_density_km2",
-                                         pop->mode==0 ? pop->uniform_density : -1);
+                    if (pop) {
+                        json_kv_str(w, "population_mode", pop->mode == 0 ? "uniform" : "raster");
+                        if (pop->mode == 0) {
+                            json_kv_num(w, "population_density_km2", pop->uniform_density);
+                            json_kv_str(w, "population_caveat",
+                                "Uniform density fills the entire domain (incl. water/rural). "
+                                "Absolute totals are a per-km^2 sanity tool; use a population "
+                                "raster (--pop-asc) for real counts.");
+                        }
+                    }
                 json_obj_end(w);
             }
             json_kv_num(w, "population_in_domain", cas->population_in_domain);
@@ -249,8 +258,8 @@ void dmk_write_report_teletype(const DmkModel *m, const DmkCasualtyOpts *opts,
     if (cas) {
         fprintf(fp, "\n*** CASUALTY ESTIMATE ***\n");
         if (opts)
-            fprintf(fp, "  (PF=%.0f, thermal-exposed=%.0f%%, %.0f h exposure)\n",
-                    (double)opts->protection_factor,
+            fprintf(fp, "  (PF fallout=%.0f, PF prompt=%.0f, thermal-exposed=%.0f%%, %.0f h)\n",
+                    (double)opts->pf_fallout, (double)opts->pf_prompt,
                     (double)opts->thermal_exposed_frac*100.0,
                     (double)opts->exposure_hours);
         fprintf(fp, "  Population in domain : %.0f\n", cas->population_in_domain);

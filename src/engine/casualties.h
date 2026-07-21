@@ -30,8 +30,12 @@ real_t dmk_pop_density(const DmkPopulation *p, real_t lat, real_t lon); /* peopl
 
 /* ---- Casualty options ------------------------------------------------- */
 typedef struct {
-    real_t protection_factor;      /* fallout/prompt dose divided by this (>=1) */
-    real_t thermal_exposed_frac;   /* fraction with direct line-of-sight to fireball */
+    real_t pf_fallout;             /* fallout gamma dose divided by this (>=1) */
+    real_t pf_prompt;              /* prompt neutron+gamma dose divided by this;
+                                    * far harder to shield -> ~1 for most shelters */
+    real_t thermal_exposed_frac;   /* fraction of people with direct line-of-sight
+                                    * to the fireball (population split, not a
+                                    * fluence multiplier) */
     real_t exposure_hours;         /* fallout dose integration window (default 48) */
     real_t visibility_km;          /* for thermal */
 } DmkCasualtyOpts;
@@ -55,6 +59,11 @@ typedef struct {
 real_t dmk_pfatal_blast(real_t overpressure_psi);
 real_t dmk_pfatal_thermal(real_t cal_cm2);
 real_t dmk_pfatal_radiation(real_t dose_rem);
+
+/* Injury (non-fatal casualty) probabilities for a single mechanism. */
+real_t dmk_pinjury_blast(real_t overpressure_psi);
+real_t dmk_pinjury_thermal(real_t cal_cm2);
+real_t dmk_pinjury_radiation(real_t dose_rem);
 
 /* Integrate casualties over the model grid using the effect models and the
  * fallout dose field. */

@@ -67,10 +67,25 @@ int main(void) {
     run_scn(&m2, 1000, 1, 3000.0, 1.0, &p2, &c2, &opts);
     CHECK(c2.fatalities > c1.fatalities, "higher yield -> more fatalities");
 
-    /* Sheltering reduces fatalities */
-    DmkCasualtyOpts sheltered = opts; sheltered.protection_factor = 40.0;
+    /* Sheltering reduces fallout fatalities */
+    DmkCasualtyOpts sheltered = opts; sheltered.pf_fallout = 40.0;
     DmkCasualties c3; dmk_casualties_compute(&m1, &p1, &sheltered, &c3);
-    CHECK(c3.fatal_fallout < c1.fatal_fallout, "sheltering (PF=40) cuts fallout fatalities");
+    CHECK(c3.fatal_fallout < c1.fatal_fallout, "fallout PF=40 cuts fallout fatalities");
+
+    /* Prompt PF is independent of fallout PF */
+    DmkCasualtyOpts promptshield = opts; promptshield.pf_prompt = 100.0;
+    DmkCasualties c4; dmk_casualties_compute(&m1, &p1, &promptshield, &c4);
+    CHECK(c4.fatal_prompt < c1.fatal_prompt, "prompt PF=100 cuts prompt fatalities");
+    CHECK(fabs(c4.fatal_fallout - c1.fatal_fallout) < 1.0, "prompt PF leaves fallout unchanged");
+
+    /* Thermal exposure is a population split: fatal_thermal scales ~linearly. */
+    DmkCasualtyOpts full_exp = opts; full_exp.thermal_exposed_frac = 1.0;
+    DmkCasualtyOpts half_exp = opts; half_exp.thermal_exposed_frac = 0.5;
+    DmkCasualties cf, ch;
+    dmk_casualties_compute(&m1, &p1, &full_exp, &cf);
+    dmk_casualties_compute(&m1, &p1, &half_exp, &ch);
+    CHECK(fabs(ch.fatal_thermal - 0.5 * cf.fatal_thermal) < 0.01 * cf.fatal_thermal + 1.0,
+          "thermal fatalities scale linearly with exposed fraction (population split)");
 
     /* Day vs night population scaling */
     DmkModel md; DmkPopulation pd; DmkCasualties cd;

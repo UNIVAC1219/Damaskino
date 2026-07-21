@@ -52,7 +52,8 @@ static int cmd_run(int argc, char **argv) {
         else if (!strcmp(argv[i], "--visibility") && i+1 < argc) opts.visibility_km = atof(argv[++i]);
         else if (!strcmp(argv[i], "--pop-density") && i+1 < argc) { pop_density = atof(argv[++i]); want_casualties = 1; }
         else if (!strcmp(argv[i], "--pop-asc") && i+1 < argc) { pop_asc = argv[++i]; want_casualties = 1; }
-        else if (!strcmp(argv[i], "--pf") && i+1 < argc) opts.protection_factor = atof(argv[++i]);
+        else if (!strcmp(argv[i], "--pf") && i+1 < argc) opts.pf_fallout = atof(argv[++i]);
+        else if (!strcmp(argv[i], "--pf-prompt") && i+1 < argc) opts.pf_prompt = atof(argv[++i]);
         else if (!strcmp(argv[i], "--thermal-exposed") && i+1 < argc) opts.thermal_exposed_frac = atof(argv[++i]);
         else if (!strcmp(argv[i], "--exposure") && i+1 < argc) opts.exposure_hours = atof(argv[++i]);
         else if (!strcmp(argv[i], "--time") && i+1 < argc) {
@@ -94,6 +95,12 @@ static int cmd_run(int argc, char **argv) {
         } else {
             dmk_pop_init_uniform(&pop, pop_density, day_night);
             have_pop = 1;
+            if (!quiet)
+                fprintf(stderr, "NOTE: uniform population (%.0f/km^2) fills the entire "
+                        "%.0f x %.0f km domain (incl. water/rural). Use --pop-asc for real "
+                        "counts.\n", (double)pop_density,
+                        (double)(sc.cfg.grid_n * sc.cfg.cell_km),
+                        (double)(sc.cfg.grid_n * sc.cfg.cell_km));
         }
         if (have_pop) {
             dmk_casualties_compute(&model, &pop, &opts, &cas);
