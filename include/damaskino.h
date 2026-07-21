@@ -99,6 +99,10 @@ typedef struct {
     DmkParticles particles;
     DmkGrid      grid;
     int          gz_x, gz_y;  /* ground zero grid coordinates */
+    /* Activity accounting (fallout mass conservation / domain adequacy) */
+    real_t       activity_emitted;   /* total activity released into the column */
+    real_t       activity_on_grid;   /* activity deposited within the grid */
+    real_t       off_grid_fraction;  /* 1 - on_grid/emitted; >0 => domain too small */
     /* Provenance */
     char         model_versions[256];
 } DmkModel;

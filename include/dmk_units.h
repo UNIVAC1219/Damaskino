@@ -50,6 +50,7 @@ typedef double real_t;
 
 /* ---- Fallout particulate ---------------------------------------------- */
 #define DMK_PARTICLE_RHO   2500.0       /* kg/m^3, silicate soil debris */
+#define DMK_DRAG_CD_SPHERE 0.44         /* Newton-regime drag coeff., sphere */
 
 /* ---- Radiation (WSEG-10 normalization) -------------------------------- */
 /* 1 MT fission at H+1 -> 1.6e6 R/hr at 1 nautical mile. */

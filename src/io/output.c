@@ -65,23 +65,37 @@ void dmk_write_result_json(const DmkModel *m, JsonWriter *w) {
         json_arr_end(w);
     json_obj_end(w);
 
+    /* Domain-adequacy diagnostics: if fallout activity or a contour reaches
+     * the grid edge, the reported extents/areas are lower bounds, not truth. */
+    real_t half_span = 0.5 * (m->grid.n - 1) * m->grid.cell_km;
+    json_key(w, "domain"); json_obj_begin(w);
+        json_kv_num(w, "half_span_km", half_span);
+        json_kv_num(w, "off_grid_fraction", m->off_grid_fraction);
+        json_kv_bool(w, "plume_clipped", m->off_grid_fraction > 0.01);
+    json_obj_end(w);
+
     /* contours: extent & area per dose level */
     static const real_t levels[] = {1, 10, 50, 100, 500, 1000, 5000};
     json_key(w, "contours"); json_arr_begin(w);
     for (unsigned li = 0; li < sizeof(levels)/sizeof(levels[0]); li++) {
         real_t level = levels[li];
-        real_t max_ext = 0.0; long count = 0;
+        real_t max_ext = 0.0; long count = 0; int touches_edge = 0;
         for (int y = 0; y < m->grid.n; y++)
             for (int x = 0; x < m->grid.n; x++)
                 if (m->grid.cell[(size_t)y*m->grid.n + x].dose_rate_rhr >= level) {
                     count++;
                     real_t d = cell_dist_km(m, x, y);
                     if (d > max_ext) max_ext = d;
+                    if (x == 0 || y == 0 || x == m->grid.n-1 || y == m->grid.n-1)
+                        touches_edge = 1;
                 }
         json_obj_begin(w);
         json_kv_num(w, "level_rhr", level);
         json_kv_num(w, "max_extent_km", max_ext);
         json_kv_num(w, "area_km2", count * m->grid.cell_km * m->grid.cell_km);
+        /* grid_limited: the contour reaches the domain boundary, so its true
+         * extent/area is larger than reported. */
+        json_kv_bool(w, "grid_limited", touches_edge);
         json_obj_end(w);
     }
     json_arr_end(w);

@@ -69,9 +69,13 @@ real_t dmk_settling_velocity(real_t diameter_microns, real_t altitude_m) {
         real_t corr = 1.0 / (1.0 + 0.15 * pow(re, 0.687));
         return v_stokes * corr;
     }
-    /* Newton drag: v ~ sqrt(d) */
+    /* Newton drag (Re >~ 1000): terminal velocity balances weight against
+     * drag F_d = 0.5 C_d rho_air A v^2, giving
+     *   v = sqrt( 4 g d (rho_p - rho_air) / (3 C_d rho_air) ).
+     * C_d ~ 0.44 for a sphere in this Reynolds range. Omitting it (C_d=1)
+     * underestimates the fall speed of the mass-dominant coarse tail by ~1.5x. */
     return sqrt(4.0 * DMK_GRAVITY_MS2 * d * (DMK_PARTICLE_RHO - rho_air)
-               / (3.0 * rho_air));
+               / (3.0 * DMK_DRAG_CD_SPHERE * rho_air));
 }
 
 /* ---- Fission product activity (Way-Wigner decay) ---------------------- */

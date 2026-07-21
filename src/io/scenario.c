@@ -119,5 +119,41 @@ int dmk_scenario_parse(const char *json_text, DmkScenario *out,
     }
 
     json_free(root);
+
+    /* ---- Validation: reject inputs that would yield NaN/inf grids ------- */
+    if (!(out->weapon.yield_kt > 0.0) || out->weapon.yield_kt > 1.0e7) {
+        if (errbuf) snprintf(errbuf, errlen,
+            "weapon.yield_kt must be in (0, 1e7]; got %g", (double)out->weapon.yield_kt);
+        return 1;
+    }
+    if (!(out->cfg.ref_time_hr > 0.0)) {
+        if (errbuf) snprintf(errbuf, errlen,
+            "grid.ref_time_hr must be > 0 (Way-Wigner decay diverges at t=0); got %g",
+            (double)out->cfg.ref_time_hr);
+        return 1;
+    }
+    if (out->weapon.fission_fraction < 0.0 || out->weapon.fission_fraction > 1.0) {
+        if (errbuf) snprintf(errbuf, errlen,
+            "weapon.fission_fraction must be in [0,1]; got %g",
+            (double)out->weapon.fission_fraction);
+        return 1;
+    }
+    if (out->cfg.grid_n < 3 || out->cfg.grid_n > 8192) {
+        if (errbuf) snprintf(errbuf, errlen,
+            "grid.n must be in [3, 8192]; got %d", out->cfg.grid_n);
+        return 1;
+    }
+    if (!(out->cfg.cell_km > 0.0)) {
+        if (errbuf) snprintf(errbuf, errlen,
+            "grid.cell_km must be > 0; got %g", (double)out->cfg.cell_km);
+        return 1;
+    }
+    if (out->gz.lat < -90.0 || out->gz.lat > 90.0 ||
+        out->gz.lon < -180.0 || out->gz.lon > 180.0) {
+        if (errbuf) snprintf(errbuf, errlen,
+            "location lat/lon out of range: (%g, %g)",
+            (double)out->gz.lat, (double)out->gz.lon);
+        return 1;
+    }
     return 0;
 }

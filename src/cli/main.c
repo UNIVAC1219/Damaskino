@@ -55,7 +55,10 @@ static int cmd_run(int argc, char **argv) {
     DmkModel model;
     int rc = dmk_run(&sc, &model);
     if (rc != 0) {
-        fprintf(stderr, "ERROR: engine failed (code %d)\n", rc);
+        const char *why = (rc == -3) ? "invalid physical parameters"
+                        : (rc == -2) ? "grid allocation failed"
+                        : "bad arguments";
+        fprintf(stderr, "ERROR: engine failed (code %d: %s)\n", rc, why);
         return 1;
     }
 

@@ -147,6 +147,67 @@ static void test_result_json_valid(void) {
     dmk_model_free(&m);
 }
 
+static void test_input_validation(void) {
+    DmkScenario sc; char err[256];
+    /* negative yield rejected */
+    int rc = dmk_scenario_parse("{\"weapon\":{\"yield_kt\":-5}}", &sc, err, sizeof err);
+    CHECK(rc != 0, "negative yield rejected by parser");
+    /* ref_time 0 rejected */
+    rc = dmk_scenario_parse("{\"weapon\":{\"yield_kt\":100},\"grid\":{\"ref_time_hr\":0}}", &sc, err, sizeof err);
+    CHECK(rc != 0, "ref_time_hr=0 rejected by parser");
+    /* fission fraction out of range rejected */
+    rc = dmk_scenario_parse("{\"weapon\":{\"yield_kt\":100,\"fission_fraction\":2}}", &sc, err, sizeof err);
+    CHECK(rc != 0, "fission_fraction>1 rejected by parser");
+
+    /* engine guard: build a bad scenario directly and confirm rc=-3, no NaN */
+    DmkScenario bad; dmk_scenario_defaults(&bad);
+    bad.weapon.yield_kt = -1.0;
+    DmkModel m;
+    CHECK(dmk_run(&bad, &m) == -3, "engine guard rejects negative yield (rc=-3)");
+}
+
+static void test_offgrid_detection(void) {
+    /* A large plume on a tiny domain must report clipping; a big domain must not. */
+    DmkScenario sc; dmk_scenario_defaults(&sc);
+    sc.weapon.yield_kt = 1000; sc.weapon.is_surface_burst = 1;
+    sc.atmosphere.layer[0].speed_kts = 30; sc.atmosphere.layer[0].direction_deg = 270;
+    dmk_atmosphere_estimate_aloft(&sc.atmosphere);
+    sc.cfg.cell_km = 1.0; sc.cfg.ref_time_hr = 1.0;
+
+    sc.cfg.grid_n = 32;                 /* 32 km span: too small */
+    DmkModel small; dmk_run(&sc, &small);
+    CHECK(small.off_grid_fraction > 0.05, "small domain flags off-grid activity");
+
+    sc.cfg.grid_n = 400;                /* 400 km span: contains the plume */
+    DmkModel big; dmk_run(&sc, &big);
+    CHECK(big.off_grid_fraction < 0.02, "large domain contains the plume");
+    dmk_model_free(&small); dmk_model_free(&big);
+}
+
+static void test_activity_normalization(void) {
+    /* On a domain large enough to contain essentially all activity, the
+     * deposited dose integrated over area should recover the emitted activity
+     * (within the on-grid fraction). This guards the 2*pi*sigma^2 kernel. */
+    DmkScenario sc; dmk_scenario_defaults(&sc);
+    sc.weapon.yield_kt = 500; sc.weapon.is_surface_burst = 1;
+    sc.weapon.fission_fraction = 1.0;
+    sc.atmosphere.layer[0].speed_kts = 10;
+    dmk_atmosphere_estimate_aloft(&sc.atmosphere);
+    sc.cfg.grid_n = 512; sc.cfg.cell_km = 1.0; sc.cfg.ref_time_hr = 1.0;
+    DmkModel m; dmk_run(&sc, &m);
+
+    double integrated = 0.0;
+    double cell_area = m.grid.cell_km * m.grid.cell_km;
+    for (size_t i = 0; i < (size_t)m.grid.n*m.grid.n; i++)
+        integrated += m.grid.cell[i].dose_rate_rhr * cell_area;
+    /* emitted activity (same normalization the kernel uses) */
+    double emitted = dmk_fission_activity(sc.weapon.yield_kt, sc.cfg.ref_time_hr,
+                                          sc.weapon.fission_fraction);
+    double ratio = integrated / (emitted * m.activity_on_grid / m.activity_emitted);
+    CHECK(ratio > 0.9 && ratio < 1.1, "deposited activity conserves emitted (2pi-sigma kernel)");
+    dmk_model_free(&m);
+}
+
 int main(void) {
     printf("=== Damaskino Phase 0 tests ===\n");
     test_json_roundtrip();
@@ -154,6 +215,9 @@ int main(void) {
     test_particles();
     test_settling_monotonic();
     test_engine_run();
+    test_input_validation();
+    test_offgrid_detection();
+    test_activity_normalization();
     test_result_json_valid();
     printf("\n%s (%d failure%s)\n", failures ? "TESTS FAILED" : "ALL TESTS PASSED",
            failures, failures == 1 ? "" : "s");

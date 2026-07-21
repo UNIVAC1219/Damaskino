@@ -85,10 +85,28 @@ static void deposit_class(DmkModel *model, int pc) {
         int gy1 = clampi((int)ceil ((land_y_km + half) / cell_km) + model->gz_y, 0, g->n - 1);
 
         real_t inv2s2 = 1.0 / (2.0 * sigma_km * sigma_km);
-        real_t area_norm = M_PI * sigma_km * sigma_km;
-        real_t base = class_act / (real_t)DMK_NUM_RELEASE_POINTS / area_norm;
+        /* A 2-D isotropic Gaussian integrates to 2*pi*sigma^2, so this is the
+         * activity-conserving normalization: sum over the plane of
+         * base*exp(-r^2/2sigma^2) == class_act/N. */
+        real_t area_norm = 2.0 * M_PI * sigma_km * sigma_km;
+        real_t release_act = class_act / (real_t)DMK_NUM_RELEASE_POINTS;
+        real_t base = release_act / area_norm;
         real_t arrival = model->cloud.stabilization_min / 60.0 + fall_hr;
         if (arrival < 0.1) arrival = 0.1;
+
+        /* Track how much of this release's activity lands within the grid, so
+         * off-domain clipping is reported rather than silently lost. The
+         * fraction inside [gmin,gmax] of a 1-D Gaussian is
+         *   0.5*(erf((gmax-mu)/(sigma*sqrt2)) - erf((gmin-mu)/(sigma*sqrt2))). */
+        {
+            real_t s2 = sigma_km * 1.4142135623730951;
+            real_t xmin = (0 - model->gz_x) * cell_km, xmax = (g->n - 1 - model->gz_x) * cell_km;
+            real_t ymin = (0 - model->gz_y) * cell_km, ymax = (g->n - 1 - model->gz_y) * cell_km;
+            real_t fx = 0.5 * (erf((xmax - land_x_km) / s2) - erf((xmin - land_x_km) / s2));
+            real_t fy = 0.5 * (erf((ymax - land_y_km) / s2) - erf((ymin - land_y_km) / s2));
+            model->activity_emitted += release_act;
+            model->activity_on_grid += release_act * fx * fy;
+        }
 
         for (int gy = gy0; gy <= gy1; gy++) {
             real_t cell_y = (gy - model->gz_y) * cell_km;
@@ -112,8 +130,15 @@ static void deposit_class(DmkModel *model, int pc) {
 }
 
 void dmk_fallout_deposit(DmkModel *model) {
+    model->activity_emitted = 0.0;
+    model->activity_on_grid = 0.0;
     for (int pc = 0; pc < DMK_NUM_PARTICLE_CLASSES; pc++)
         deposit_class(model, pc);
+
+    model->off_grid_fraction = (model->activity_emitted > 0.0)
+        ? 1.0 - model->activity_on_grid / model->activity_emitted
+        : 0.0;
+    if (model->off_grid_fraction < 0.0) model->off_grid_fraction = 0.0;
 
     /* Air bursts loft fine particles high: minimal local fallout. */
     real_t scale = model->scenario.weapon.is_surface_burst ? 1.0 : 0.005;

@@ -44,6 +44,15 @@ static int grid_alloc(DmkGrid *g, int n, real_t cell_km) {
 
 int dmk_run(const DmkScenario *scenario, DmkModel *model) {
     if (!scenario || !model) return -1;
+
+    /* Defensive parameter guard: reject values that would produce NaN/inf
+     * (negative yield -> pow(neg,0.25); ref_time 0 -> pow(0,-1.2)=inf). This
+     * mirrors dmk_scenario_parse but also protects direct API / UNIVAC callers. */
+    if (!(scenario->weapon.yield_kt > 0.0) || scenario->weapon.yield_kt > 1.0e7) return -3;
+    if (!(scenario->cfg.ref_time_hr > 0.0)) return -3;
+    if (scenario->weapon.fission_fraction < 0.0 || scenario->weapon.fission_fraction > 1.0) return -3;
+    if (!(scenario->cfg.cell_km > 0.0)) return -3;
+
     memset(model, 0, sizeof(*model));
     model->scenario = *scenario;
 
