@@ -7,6 +7,8 @@
 *.pdb
 *.ilk
 *.o
+__pycache__/
+*.pyc
 /.claude
 /rasters_SRTM15Plus
 /rasters_SRTM15Plus_1000m
