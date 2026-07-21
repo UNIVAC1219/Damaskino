@@ -113,9 +113,32 @@ Deferred:
 - **Personal dose calculator**: `dmk_fallout_dose_rem` (Way-Wigner integral,
   arrival→window, protection factor).
 
+Resolved (post-panel):
+- **Release altitude is ASL** (terrain height under GZ + in-cloud height), so
+  wind lookups and the ground sink are consistent over elevated terrain.
+- **Fine-parcel step cap** raised to 200k and, on exceedance, the parcel is
+  counted as off-grid loss rather than deposited at a spurious location
+  (10 Mt runs finite, off_grid 0.03).
+- **Wind interpolation guards** duplicate/equal-altitude levels (no div-by-zero
+  -> no NaN plume).
+- **Deposition cutoff widened to 4 sigma** (cleaner conservation bookkeeping).
+- **ERA5 precip unit fix** in fetch_weather.py (accumulated metres -> mm/hr;
+  --accum-hours), which previously would have been ~1000x off for tp.
+- **Personal dose CLI**: `damaskino dose --rate --arrival --window --pf` reports
+  accumulated dose, an effect assessment, and time-to-50-rem.
+
 Deferred (Phase 3.5 / later):
 - **Full fission-product decay inventory** + gamma dose-rate conversion, to
   replace the repurposed 1.6e6 R/hr point constant (still the activity anchor).
+- **Scale-dependent crosswind spread**: eddy diffusivity K=40 m^2/s carries
+  little width; plume breadth comes from the cloud disk + directional shear
+  across release altitudes. Real (veering) ERA5/GFS columns spread more; add a
+  travel-distance-dependent sigma_y for unidirectional columns.
+- **Wet scavenging confined to the precipitating layer** (currently whole
+  column) and a **spatial precip field** for true localized rainout hotspots
+  (single scalar precip today).
+- **off_grid_fraction floor** (~0.1-0.3% from the sigma cutoff) is bookkeeping,
+  not real escape; document or subtract the analytic tail.
 - **4-D gridded wind**: currently a single representative wind column advects
   all parcels; large plumes crossing strong horizontal wind gradients want a
   space/time-varying field (interpolated per parcel position).

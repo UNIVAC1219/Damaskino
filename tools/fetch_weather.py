@@ -39,6 +39,8 @@ def main():
     ap.add_argument("--lon", type=float, required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--source", default="GFS")
+    ap.add_argument("--accum-hours", type=float, default=1.0,
+                    help="accumulation window for tp/apcp precip fields (hours)")
     args = ap.parse_args()
 
     try:
@@ -83,11 +85,16 @@ def main():
         dsp = xr.open_dataset(args.grib, engine="cfgrib",
                               backend_kwargs={"filter_by_keys":
                                               {"typeOfLevel": "surface"}})
-        for name in ("tp", "prate", "apcp"):
+        for name in ("prate", "tp", "apcp"):
             if name in dsp:
                 val = float(dsp[name].sel(latitude=args.lat, longitude=lon,
                                           method="nearest").values)
-                precip = val * 3600.0 if name == "prate" else val  # kg/m2/s -> mm/hr
+                if name == "prate":                 # kg/m^2/s -> mm/hr
+                    precip = val * 3600.0
+                elif name == "tp":                  # ERA5 accumulated metres -> mm/hr
+                    precip = val * 1000.0 / max(args.accum_hours, 1e-6)
+                else:                               # GFS apcp: accumulated mm
+                    precip = val / max(args.accum_hours, 1e-6)
                 break
     except Exception:
         pass

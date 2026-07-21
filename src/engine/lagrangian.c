@@ -30,8 +30,9 @@
 #define DMK_LAGR_AZIMUTHS      8      /* initial horizontal samples (ring) */
 #define DMK_LAGR_RINGS         2      /* radial samples within the cloud disk */
 #define DMK_LAGR_DT            30.0   /* transport timestep, seconds */
-#define DMK_LAGR_SIGMA_CUTOFF  3.5
+#define DMK_LAGR_SIGMA_CUTOFF  4.0    /* deposit within +/- this many sigma */
 #define DMK_EDDY_DIFFUSIVITY   40.0   /* horizontal K, m^2/s (turbulent spread) */
+#define DMK_LAGR_MAX_STEPS     200000 /* fall-integration step cap (~70 days) */
 
 /* Freiling fractionation: refractory nuclides condense into the melt early and
  * ride the larger particles; volatiles plate out later onto small ones. We bias
@@ -127,6 +128,11 @@ void dmk_lagrangian_deposit(DmkModel *model) {
                       : (real_t)ia / (DMK_LAGR_ALT_LEVELS - 1);
             real_t rel_alt_m = (base_km + af * (top_km - base_km)) * DMK_KM_TO_M;
 
+            /* Release altitude is ASL: terrain height under GZ plus the height
+             * within the cloud column (so wind lookups against ASL weather
+             * levels and the ground sink are consistent over elevated terrain). */
+            real_t rel_alt_asl = gz_elev_m + rel_alt_m;
+
             for (int ih = 0; ih < n_horiz; ih++) {
                 /* initial horizontal offset within the cloud disk */
                 real_t ox_km = 0.0, oy_km = 0.0;
@@ -140,13 +146,14 @@ void dmk_lagrangian_deposit(DmkModel *model) {
 
                 /* Advect this parcel to the ground. */
                 real_t x_m = ox_km * DMK_KM_TO_M, y_m = oy_km * DMK_KM_TO_M;
-                real_t alt = rel_alt_m;
+                real_t alt = rel_alt_asl;
                 real_t fall_s = 0.0;
                 real_t act = per_release;
                 model->activity_emitted += per_release;
 
-                int guard = 0;
-                while (alt > gz_elev_m && guard++ < 100000) {
+                int guard = 0, landed = 1;
+                while (alt > gz_elev_m) {
+                    if (guard++ > DMK_LAGR_MAX_STEPS) { landed = 0; break; }
                     real_t u, v; dmk_wind_at(wind, alt, &u, &v);
                     real_t vset = dmk_settling_velocity(diameter, alt);
                     real_t dt = DMK_LAGR_DT;
@@ -172,7 +179,12 @@ void dmk_lagrangian_deposit(DmkModel *model) {
                     }
                 }
 
-                /* Dry deposition of the remaining activity at the landing point. */
+                /* Dry deposition of the remaining activity at the landing point.
+                 * If the parcel never reached the ground (step cap: only the
+                 * finest classes from very tall clouds), it is still airborne
+                 * and would land far off-grid -- count it as off-grid loss
+                 * rather than depositing at a spurious location. */
+                if (!landed) continue;
                 real_t land_x_km = x_m * DMK_M_TO_KM, land_y_km = y_m * DMK_M_TO_KM;
                 real_t sigma_km = cloud_radius_km
                                 + sqrt(2.0 * DMK_EDDY_DIFFUSIVITY * fall_s) * DMK_M_TO_KM;

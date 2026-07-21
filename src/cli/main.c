@@ -204,6 +204,45 @@ static int cmd_weapons(void) {
     return 0;
 }
 
+static int cmd_dose(int argc, char **argv) {
+    /* Personal dose calculator: given the local H+1 dose rate (from a run's
+     * fallout grid), when fallout arrived, a shelter protection factor, and a
+     * stay-time window, report accumulated dose and when a target is reached. */
+    double rate_h1 = 0, arrival = 1.0, window = 48.0, pf = 1.0;
+    for (int i = 0; i < argc; i++) {
+        if (!strcmp(argv[i], "--rate") && i+1 < argc) rate_h1 = atof(argv[++i]);
+        else if (!strcmp(argv[i], "--arrival") && i+1 < argc) arrival = atof(argv[++i]);
+        else if (!strcmp(argv[i], "--window") && i+1 < argc) window = atof(argv[++i]);
+        else if (!strcmp(argv[i], "--pf") && i+1 < argc) pf = atof(argv[++i]);
+    }
+    if (rate_h1 <= 0) {
+        fprintf(stderr, "Usage: damaskino dose --rate <H+1 R/hr> [--arrival H] [--window H] [--pf N]\n");
+        return 2;
+    }
+    double dose = dmk_fallout_dose_rem(rate_h1, arrival, window, pf);
+    printf("Personal fallout dose estimate\n");
+    printf("  H+1 dose rate      : %.1f R/hr\n", rate_h1);
+    printf("  Fallout arrival    : H+%.1f h\n", arrival);
+    printf("  Shelter PF         : %.0f\n", pf);
+    printf("  Stay window        : %.1f h\n", window);
+    printf("  Accumulated dose   : %.0f rem\n", dose);
+    /* Effect summary */
+    const char *effect =
+        dose < 50 ? "below acute-effect threshold" :
+        dose < 150 ? "possible mild radiation sickness" :
+        dose < 450 ? "radiation sickness likely; medical care needed" :
+        dose < 1000 ? "severe; ~50% lethal without treatment" : "likely fatal";
+    printf("  Assessment         : %s\n", effect);
+    /* Time to reach 50 rem (a shelter-exit planning threshold) unsheltered-equiv */
+    for (double t = arrival + 0.5; t <= 168.0; t += 0.5) {
+        if (dmk_fallout_dose_rem(rate_h1, arrival, t, pf) >= 50.0) {
+            printf("  Reaches 50 rem at  : H+%.1f h (%.1f h after arrival)\n", t, t - arrival);
+            break;
+        }
+    }
+    return 0;
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr,
@@ -215,16 +254,18 @@ int main(int argc, char **argv) {
             "     [--threshold R/hr] [--quiet]\n"
             "  %s targets [--search TERM] [--state ST] [--limit N]\n"
             "  %s weapons\n"
+            "  %s dose --rate <H+1 R/hr> [--arrival H] [--window H] [--pf N]\n"
             "  %s version\n"
             "\nScenario JSON may reference the catalog: \"target\": <id|name>,\n"
             "\"weapon_preset\": \"<id>\" (see: damaskino targets / weapons).\n",
-            DMK_VERSION_STRING, argv[0], argv[0], argv[0], argv[0]);
+            DMK_VERSION_STRING, argv[0], argv[0], argv[0], argv[0], argv[0]);
         return 2;
     }
     if (!strcmp(argv[1], "version")) { printf("damaskino %s\n", DMK_VERSION_STRING); return 0; }
     if (!strcmp(argv[1], "run")) return cmd_run(argc - 2, argv + 2);
     if (!strcmp(argv[1], "targets")) return cmd_targets(argc - 2, argv + 2);
     if (!strcmp(argv[1], "weapons")) return cmd_weapons();
+    if (!strcmp(argv[1], "dose")) return cmd_dose(argc - 2, argv + 2);
     fprintf(stderr, "Unknown command: %s\n", argv[1]);
     return 2;
 }

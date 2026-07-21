@@ -76,7 +76,8 @@ void dmk_wind_at(const DmkWindColumn *w, real_t alt_m, real_t *u, real_t *v) {
     if (alt_m >= w->alt_m[w->nlev-1])  { *u = w->u_ms[w->nlev-1]; *v = w->v_ms[w->nlev-1]; return; }
     for (int i = 1; i < w->nlev; i++) {
         if (alt_m <= w->alt_m[i]) {
-            real_t t = (alt_m - w->alt_m[i-1]) / (w->alt_m[i] - w->alt_m[i-1]);
+            real_t denom = w->alt_m[i] - w->alt_m[i-1];
+            real_t t = (denom > 0.0) ? (alt_m - w->alt_m[i-1]) / denom : 0.0;
             *u = w->u_ms[i-1] + t * (w->u_ms[i] - w->u_ms[i-1]);
             *v = w->v_ms[i-1] + t * (w->v_ms[i] - w->v_ms[i-1]);
             return;
