@@ -173,10 +173,10 @@ def site_note(name, category):
     if "yamantau" in low or "kosvinsky" in low:
         return ("deep-underground hardened shelter engineered to survive a "
                 "near-direct hit; DGZ is a nominal marker, not a computed kill")
-    if "field" in low:
-        return ("single representative DGZ; the real field disperses many "
-                "hardened silos over a wide area, so the modeled footprint "
-                "under-represents the counterforce laydown")
+    if "field" in low or "icbm base" in low:
+        return ("single representative DGZ; the real formation disperses many "
+                "hardened silos or road-mobile launchers over a wide area, so "
+                "the modeled footprint under-represents the counterforce laydown")
     return None
 
 def main():
