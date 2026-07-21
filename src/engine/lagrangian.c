@@ -45,31 +45,39 @@ static real_t fractionation_weight(real_t diameter_um) {
 
 static int clampi(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
-/* Deposit `activity` at grid location (land_x,land_y) km from GZ, spread by
- * sigma_km, tracking arrival time. Returns the activity that landed on-grid
- * (the rest fell outside the domain). */
+/* Deposit `activity` at (land_x,land_y) km from GZ as an ANISOTROPIC oriented
+ * Gaussian: sigma_along the transport axis and sigma_cross perpendicular. A
+ * fallout puff is not circular -- crosswind spread (turbulence + shear + meso-
+ * scale) differs from along-wind spread, and the axis follows the local
+ * transport direction. Returns the activity deposited on-grid. */
 static real_t deposit_parcel(DmkModel *m, real_t land_x_km, real_t land_y_km,
-                             real_t sigma_km, real_t activity, real_t arrival_hr) {
+                             real_t sigma_along, real_t sigma_cross,
+                             real_t axis_rad, real_t activity, real_t arrival_hr) {
     DmkGrid *g = &m->grid;
     real_t cell_km = g->cell_km;
     real_t cell_area = cell_km * cell_km;
-    if (sigma_km < 1.0e-3) sigma_km = 1.0e-3;
-    real_t half = DMK_LAGR_SIGMA_CUTOFF * sigma_km;
+    if (sigma_along < 1.0e-3) sigma_along = 1.0e-3;
+    if (sigma_cross < 1.0e-3) sigma_cross = 1.0e-3;
+    real_t smax = sigma_along > sigma_cross ? sigma_along : sigma_cross;
+    real_t half = DMK_LAGR_SIGMA_CUTOFF * smax;
     int gx0 = clampi((int)floor((land_x_km - half)/cell_km) + m->gz_x, 0, g->n-1);
     int gx1 = clampi((int)ceil ((land_x_km + half)/cell_km) + m->gz_x, 0, g->n-1);
     int gy0 = clampi((int)floor((land_y_km - half)/cell_km) + m->gz_y, 0, g->n-1);
     int gy1 = clampi((int)ceil ((land_y_km + half)/cell_km) + m->gz_y, 0, g->n-1);
 
-    real_t inv2s2 = 1.0 / (2.0 * sigma_km * sigma_km);
-    /* dose_rate is an areal density; normalize so integral over area == activity */
-    real_t norm = activity / (2.0 * M_PI * sigma_km * sigma_km);
+    real_t ca = cos(axis_rad), sa = sin(axis_rad);
+    real_t inv2a2 = 1.0 / (2.0 * sigma_along * sigma_along);
+    real_t inv2c2 = 1.0 / (2.0 * sigma_cross * sigma_cross);
+    real_t norm = activity / (2.0 * M_PI * sigma_along * sigma_cross);
     real_t on_grid = 0.0;
 
     for (int gy = gy0; gy <= gy1; gy++) {
         real_t cy = (gy - m->gz_y) * cell_km, dy = cy - land_y_km;
         for (int gx = gx0; gx <= gx1; gx++) {
             real_t cx = (gx - m->gz_x) * cell_km, dx = cx - land_x_km;
-            real_t dep = norm * exp(-(dx*dx + dy*dy) * inv2s2);
+            real_t along =  dx * ca + dy * sa;
+            real_t cross = -dx * sa + dy * ca;
+            real_t dep = norm * exp(-along*along*inv2a2 - cross*cross*inv2c2);
             DmkCell *c = dmk_grid_at(g, gx, gy);
             c->dose_rate_rhr += dep;
             if (dep > 0.0 && (c->arrival_hr == 0.0 || arrival_hr < c->arrival_hr))
@@ -78,6 +86,19 @@ static real_t deposit_parcel(DmkModel *m, real_t land_x_km, real_t land_y_km,
         }
     }
     return on_grid;
+}
+
+/* Along/cross sigma (km) for a puff that has traveled `travel_km` in `fall_s`,
+ * given the initial cloud radius and a crosswind stability factor. Along-wind
+ * spread is turbulent; crosswind adds a scale-dependent meso-scale term so the
+ * plume has realistic WIDTH even under a unidirectional wind column (real
+ * ERA5/GFS columns add directional shear on top). */
+static void puff_sigma(real_t cloud_radius_km, real_t fall_s, real_t travel_km,
+                       real_t cross_factor, real_t *s_along, real_t *s_cross) {
+    real_t turb_km = cloud_radius_km
+                   + sqrt(2.0 * DMK_EDDY_DIFFUSIVITY * fall_s) * DMK_M_TO_KM;
+    *s_along = turb_km;
+    *s_cross = turb_km + cross_factor * 0.05 * travel_km;  /* ~5% of downwind dist */
 }
 
 void dmk_lagrangian_deposit(DmkModel *model) {
@@ -98,9 +119,27 @@ void dmk_lagrangian_deposit(DmkModel *model) {
     real_t gz_elev_m = dmk_dem_ready(dem) ? dmk_dem_elev(dem, sc->gz.lat, sc->gz.lon) : 0.0;
 
     /* Precipitation scavenging coefficient (per second): Lambda = a P^b, with
-     * P in mm/hr (Marshall-Palmer-like). */
+     * P in mm/hr (Marshall-Palmer-like). Washout is confined to the
+     * PRECIPITATING LAYER (below cloud base, capped at ~6 km): rain does not
+     * scavenge the debris still above the cloud deck. */
     real_t precip = wind ? wind->precip_mm_hr : 0.0;
     real_t scav = (precip > 0.0) ? 1.0e-4 * pow(precip, 0.8) : 0.0;
+    real_t precip_top_asl = gz_elev_m + 6000.0;   /* top of the precipitating layer */
+
+    /* Crosswind spread stability factor: unstable air (Pasquill A-C) spreads
+     * more, stable (E-F) less. Read an optional class from the weather column
+     * (default neutral D = 1.0). */
+    real_t cross_factor = 1.0;
+    if (wind) {
+        switch (wind->stability_class) {
+            case 'A': cross_factor = 2.0; break;
+            case 'B': cross_factor = 1.6; break;
+            case 'C': cross_factor = 1.25; break;
+            case 'E': cross_factor = 0.75; break;
+            case 'F': cross_factor = 0.5; break;
+            default:  cross_factor = 1.0; break;   /* D neutral */
+        }
+    }
 
     /* Normalize activity across the parcel ensemble (weighted by mass frac and
      * fractionation). Precompute the total weight. */
@@ -164,17 +203,19 @@ void dmk_lagrangian_deposit(DmkModel *model) {
                     alt -= vset * dt;
                     fall_s += dt;
 
-                    /* Wet scavenging: deposit a fraction here, en route. */
-                    if (scav > 0.0) {
+                    /* Wet scavenging within the precipitating layer only. */
+                    if (scav > 0.0 && alt < precip_top_asl) {
                         real_t frac = 1.0 - exp(-scav * dt);
                         real_t dep_act = act * frac;
                         act -= dep_act;
                         if (dep_act > 0.0) {
-                            real_t sig = cloud_radius_km
-                                       + sqrt(2.0 * DMK_EDDY_DIFFUSIVITY * fall_s) * DMK_M_TO_KM;
+                            real_t xk = x_m*DMK_M_TO_KM, yk = y_m*DMK_M_TO_KM;
+                            real_t travel = sqrt(xk*xk + yk*yk);
+                            real_t sa2, sc2; puff_sigma(cloud_radius_km, fall_s, travel, cross_factor, &sa2, &sc2);
+                            real_t axis = atan2(yk, xk);
                             real_t arr = stab_hr + fall_s / 3600.0;
-                            model->activity_on_grid += deposit_parcel(model,
-                                x_m*DMK_M_TO_KM, y_m*DMK_M_TO_KM, sig, dep_act, arr);
+                            model->activity_on_grid += deposit_parcel(model, xk, yk,
+                                sa2, sc2, axis, dep_act, arr);
                         }
                     }
                 }
@@ -186,12 +227,14 @@ void dmk_lagrangian_deposit(DmkModel *model) {
                  * rather than depositing at a spurious location. */
                 if (!landed) continue;
                 real_t land_x_km = x_m * DMK_M_TO_KM, land_y_km = y_m * DMK_M_TO_KM;
-                real_t sigma_km = cloud_radius_km
-                                + sqrt(2.0 * DMK_EDDY_DIFFUSIVITY * fall_s) * DMK_M_TO_KM;
+                real_t travel = sqrt(land_x_km*land_x_km + land_y_km*land_y_km);
+                real_t s_along, s_cross;
+                puff_sigma(cloud_radius_km, fall_s, travel, cross_factor, &s_along, &s_cross);
+                real_t axis = atan2(land_y_km, land_x_km);
                 real_t arrival = stab_hr + fall_s / 3600.0;
                 if (arrival < 0.1) arrival = 0.1;
                 model->activity_on_grid += deposit_parcel(model, land_x_km, land_y_km,
-                                                          sigma_km, act, arrival);
+                                                          s_along, s_cross, axis, act, arrival);
             }
         }
     }

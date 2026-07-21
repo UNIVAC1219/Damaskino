@@ -44,6 +44,8 @@ int dmk_weather_load(const char *path, DmkWindColumn *out) {
     out->lat = json_get_number(root, "lat", 0.0);
     out->lon = json_get_number(root, "lon", 0.0);
     out->precip_mm_hr = json_get_number(root, "precip_mm_hr", 0.0);
+    const char *stab = json_get_string(root, "stability_class", "D");
+    out->stability_class = (stab && stab[0]) ? stab[0] : 'D';
 
     JsonValue *levels = json_get(root, "levels");
     if (!levels || levels->type != JSON_ARRAY || levels->u.array.count == 0) {
@@ -89,6 +91,7 @@ void dmk_wind_at(const DmkWindColumn *w, real_t alt_m, real_t *u, real_t *v) {
 void dmk_weather_from_atmosphere(const DmkAtmosphere *atm, DmkWindColumn *out) {
     memset(out, 0, sizeof(*out));
     strncpy(out->source, "hand-entered", sizeof(out->source) - 1);
+    out->stability_class = 'D';
     if (alloc_levels(out, atm->n_layers) != 0) return;
     for (int i = 0; i < atm->n_layers; i++) {
         out->alt_m[i] = atm->layer[i].altitude_ft * DMK_FT_TO_M;

@@ -17,6 +17,7 @@ typedef struct DmkWindColumn {
     real_t *v_ms;         /* northward wind, m/s */
     real_t  precip_mm_hr; /* surface precipitation (rainout) */
     real_t  lat, lon;
+    char    stability_class; /* Pasquill-Gifford A..F; 'D' neutral default */
     char    source[32];
     int     loaded;
 } DmkWindColumn;
