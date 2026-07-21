@@ -24,6 +24,7 @@
 #include "casualties.h"
 #include "catalog.h"
 #include "terrain.h"
+#include "weather.h"
 #include "json.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,7 +41,7 @@ static int write_text_file(const char *path, const char *text) {
 
 static int cmd_run(int argc, char **argv) {
     const char *scenario_path = NULL, *json_out = NULL, *geojson_out = NULL;
-    const char *pop_asc = NULL, *dem_path = NULL;
+    const char *pop_asc = NULL, *dem_path = NULL, *weather_path = NULL;
     real_t threshold = 1.0, pop_density = 0.0;
     int quiet = 0, want_casualties = 0;
     DmkCasualtyOpts opts; dmk_casualty_opts_defaults(&opts);
@@ -54,6 +55,7 @@ static int cmd_run(int argc, char **argv) {
         else if (!strcmp(argv[i], "--pop-density") && i+1 < argc) { pop_density = atof(argv[++i]); want_casualties = 1; }
         else if (!strcmp(argv[i], "--pop-asc") && i+1 < argc) { pop_asc = argv[++i]; want_casualties = 1; }
         else if (!strcmp(argv[i], "--dem") && i+1 < argc) dem_path = argv[++i];
+        else if (!strcmp(argv[i], "--weather") && i+1 < argc) weather_path = argv[++i];
         else if (!strcmp(argv[i], "--pf") && i+1 < argc) opts.pf_fallout = atof(argv[++i]);
         else if (!strcmp(argv[i], "--pf-prompt") && i+1 < argc) opts.pf_prompt = atof(argv[++i]);
         else if (!strcmp(argv[i], "--thermal-exposed") && i+1 < argc) opts.thermal_exposed_frac = atof(argv[++i]);
@@ -85,13 +87,23 @@ static int cmd_run(int argc, char **argv) {
         else { have_dem = 1; if (!quiet) fprintf(stderr, "Loaded DEM %s (%dx%d)\n", dem_path, dem.ncols, dem.nrows); }
     }
 
+    /* Optional real weather (enables the Lagrangian fallout model) */
+    DmkWindColumn wind; int have_wind = 0;
+    if (weather_path) {
+        if (dmk_weather_load(weather_path, &wind) != 0)
+            fprintf(stderr, "WARNING: could not load weather %s; using profile winds (WSEG)\n", weather_path);
+        else { have_wind = 1; if (!quiet) fprintf(stderr, "Loaded weather %s (%s, %d levels, %.1f mm/hr precip)\n",
+                                                  weather_path, wind.source, wind.nlev, (double)wind.precip_mm_hr); }
+    }
+
     DmkModel model;
-    int rc = dmk_run_ex(&sc, have_dem ? &dem : NULL, &model);
+    int rc = dmk_run_full(&sc, have_dem ? &dem : NULL, have_wind ? &wind : NULL, &model);
     if (rc != 0) {
         const char *why = (rc == -3) ? "invalid physical parameters"
                         : (rc == -2) ? "grid allocation failed" : "bad arguments";
         fprintf(stderr, "ERROR: engine failed (code %d: %s)\n", rc, why);
         if (have_dem) dmk_dem_free(&dem);
+        if (have_wind) dmk_weather_free(&wind);
         return 1;
     }
 
@@ -140,6 +152,7 @@ static int cmd_run(int argc, char **argv) {
 
     if (have_pop) dmk_pop_free(&pop);
     if (have_dem) dmk_dem_free(&dem);
+    if (have_wind) dmk_weather_free(&wind);
     dmk_model_free(&model);
     return 0;
 }

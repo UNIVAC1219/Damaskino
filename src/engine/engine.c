@@ -3,6 +3,7 @@
  * and manage lifetime. Records model-version provenance.
  */
 #include "damaskino.h"
+#include "weather.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -43,10 +44,15 @@ static int grid_alloc(DmkGrid *g, int n, real_t cell_km) {
 }
 
 int dmk_run(const DmkScenario *scenario, DmkModel *model) {
-    return dmk_run_ex(scenario, NULL, model);
+    return dmk_run_full(scenario, NULL, NULL, model);
 }
 
 int dmk_run_ex(const DmkScenario *scenario, const struct DmkDem *dem, DmkModel *model) {
+    return dmk_run_full(scenario, dem, NULL, model);
+}
+
+int dmk_run_full(const DmkScenario *scenario, const struct DmkDem *dem,
+                 const struct DmkWindColumn *wind, DmkModel *model) {
     if (!scenario || !model) return -1;
 
     /* Defensive parameter guard: reject values that would produce NaN/inf
@@ -60,6 +66,7 @@ int dmk_run_ex(const DmkScenario *scenario, const struct DmkDem *dem, DmkModel *
     memset(model, 0, sizeof(*model));
     model->scenario = *scenario;
     model->dem = dem;
+    model->wind = wind;
 
     /* Derive analysis range if unset. */
     if (model->scenario.cfg.max_range_km <= 0.0)
@@ -78,11 +85,25 @@ int dmk_run_ex(const DmkScenario *scenario, const struct DmkDem *dem, DmkModel *
 
     dmk_cloud_compute(&model->scenario, &model->cloud);
     dmk_particles_compute(&model->scenario, &model->particles);
-    dmk_fallout_deposit(model);
+
+    const char *fallout_model = "WSEG-10(ported)";
+    const char *wind_src = "profile";
+#ifndef UNIVAC
+    /* The full profile uses the Lagrangian model when a real wind column is
+     * supplied; the UNIVAC-lite profile always uses WSEG (no weather/JSON). */
+    if (dmk_weather_ready(wind)) {
+        dmk_lagrangian_deposit(model);
+        fallout_model = "Lagrangian(real-wind)";
+        wind_src = wind->source;
+    } else
+#endif
+    {
+        dmk_fallout_deposit(model);
+    }
 
     snprintf(model->model_versions, sizeof(model->model_versions),
-             "engine=%s;fallout=WSEG-10(ported);cloud=WSEG-10;decay=Way-Wigner-1.2;terrain=%s",
-             DMK_VERSION_STRING, dem ? "DEM" : "flat");
+             "engine=%s;fallout=%s;cloud=WSEG-10;decay=Way-Wigner-1.2;terrain=%s;wind=%s",
+             DMK_VERSION_STRING, fallout_model, dem ? "DEM" : "flat", wind_src);
     return 0;
 }
 

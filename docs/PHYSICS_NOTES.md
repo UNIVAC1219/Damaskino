@@ -92,7 +92,39 @@ Deferred:
   A Karzas-Latter field(altitude, geomagnetic latitude) with the off-nadir
   "smile" is the eventual upgrade (IGRF already scoped for E3).
 
-## Deferred to Phase 3 (Lagrangian fallout rewrite)
+## Phase 3 — implemented
+
+- **Lagrangian particle dispersion** replaces WSEG single-column transport when
+  a real wind column is supplied: size-resolved parcels released across the
+  stabilized cloud disk (base→top), advected through the multi-level wind with
+  size-dependent settling, deposited terrain-aware with a turbulent-diffusion
+  sigma ~ sqrt(2 K t).
+- **Wet deposition / rainout**: precipitation drives a scavenging coefficient
+  Λ = a·P^0.8; activity is removed en route and deposited under the rain,
+  concentrating the near-in pattern (verified: 10 R/hr extent 178→122 km at
+  8 mm/hr).
+- **Freiling fractionation** (first-order): per-class activity biased toward
+  larger/earlier-falling particles vs. the mass fraction.
+- **Weather ingestion**: ERA5 (CDS) / GFS-GDAS (NCEP) → `fetch_weather.py`
+  JSON interchange → `src/weather` wind column (u/v vs. altitude + precip).
+  Hand-entered profile remains the offline/UNIVAC fallback.
+- **Protective actions**: 48 h integrated (unsheltered) dose zones (50/150/450
+  rem) for shelter/evacuation, plus fallout first/last arrival timing.
+- **Personal dose calculator**: `dmk_fallout_dose_rem` (Way-Wigner integral,
+  arrival→window, protection factor).
+
+Deferred (Phase 3.5 / later):
+- **Full fission-product decay inventory** + gamma dose-rate conversion, to
+  replace the repurposed 1.6e6 R/hr point constant (still the activity anchor).
+- **4-D gridded wind**: currently a single representative wind column advects
+  all parcels; large plumes crossing strong horizontal wind gradients want a
+  space/time-varying field (interpolated per parcel position).
+- **Scavenging coefficient calibration** (Λ = a·P^0.8, a=1e-4) against measured
+  washout; and dry-deposition velocity by surface type.
+- **Activity accounting** for wet+dry is summed from on-grid Gaussian integrals
+  (approximate at the domain edge).
+
+## Deferred to Phase 3.5 (Lagrangian fallout — further refinement)
 
 - **Continuous settling curve.** The piecewise Stokes / Schiller-Naumann /
   Newton branches are discontinuous at the regime boundaries. The Lagrangian

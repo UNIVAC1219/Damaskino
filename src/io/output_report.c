@@ -113,6 +113,58 @@ void dmk_write_report_json(const DmkModel *m, const DmkPopulation *pop,
         json_arr_end(w);
     json_obj_end(w);
 
+    /* Protective actions: 48 h integrated (unsheltered) dose zones for
+     * shelter/evacuation planning, plus fallout arrival timing. */
+    {
+        real_t exposure = (opts && opts->exposure_hours > 0.0) ? opts->exposure_hours : 48.0;
+        json_key(w, "protective_actions"); json_obj_begin(w);
+            json_kv_num(w, "dose_window_hours", exposure);
+            json_kv_str(w, "basis", "unsheltered (PF=1) accumulated fallout gamma dose from arrival");
+            static const real_t dlev[] = {50.0, 150.0, 450.0};   /* rem */
+            static const char *dlabel[] = {
+                "50 rem: shelter recommended",
+                "150 rem: evacuation / radiation sickness onset",
+                "450 rem: ~LD50 without treatment" };
+            json_key(w, "dose_zones"); json_arr_begin(w);
+            for (unsigned li = 0; li < 3; li++) {
+                real_t maxext = 0.0; long cnt = 0; int edge = 0;
+                for (int y = 0; y < m->grid.n; y++)
+                    for (int x = 0; x < m->grid.n; x++) {
+                        const DmkCell *c = &m->grid.cell[(size_t)y*m->grid.n + x];
+                        real_t dose = dmk_fallout_dose_rem(c->dose_rate_rhr, c->arrival_hr, exposure, 1.0);
+                        if (dose >= dlev[li]) {
+                            cnt++;
+                            real_t dx=(x-m->gz_x)*m->grid.cell_km, dy=(y-m->gz_y)*m->grid.cell_km;
+                            real_t d=sqrt(dx*dx+dy*dy); if (d>maxext) maxext=d;
+                            if (x==0||y==0||x==m->grid.n-1||y==m->grid.n-1) edge=1;
+                        }
+                    }
+                json_obj_begin(w);
+                json_kv_num(w, "dose_rem", dlev[li]);
+                json_kv_num(w, "max_extent_km", maxext);
+                json_kv_num(w, "area_km2", cnt * m->grid.cell_km * m->grid.cell_km);
+                json_kv_str(w, "action", dlabel[li]);
+                json_kv_bool(w, "grid_limited", edge);
+                json_obj_end(w);
+            }
+            json_arr_end(w);
+            /* Arrival-time window over significant cells (>=1 R/hr): informs
+             * how long before fallout reaches the far edge of the pattern. */
+            real_t amin = 1e9, amax = 0.0;
+            for (int i = 0; i < m->grid.n*m->grid.n; i++) {
+                const DmkCell *c = &m->grid.cell[i];
+                if (c->dose_rate_rhr >= 1.0 && c->arrival_hr > 0.0) {
+                    if (c->arrival_hr < amin) amin = c->arrival_hr;
+                    if (c->arrival_hr > amax) amax = c->arrival_hr;
+                }
+            }
+            if (amin < 1e9) {
+                json_kv_num(w, "first_arrival_hr", amin);
+                json_kv_num(w, "last_arrival_hr", amax);
+            }
+        json_obj_end(w);
+    }
+
     /* Casualties */
     if (cas) {
         json_key(w, "casualties"); json_obj_begin(w);

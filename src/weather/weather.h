@@ -10,7 +10,7 @@
 #define DMK_WEATHER_H
 #include "damaskino.h"
 
-typedef struct {
+typedef struct DmkWindColumn {
     int     nlev;
     real_t *alt_m;        /* ascending altitude, m */
     real_t *u_ms;         /* eastward wind, m/s */

@@ -12,7 +12,7 @@ CC      ?= cc
 CSTD    ?= -std=c11
 WARN     = -Wall -Wextra -Wno-unused-parameter
 OPT     ?= -O2
-CFLAGS   = $(CSTD) $(WARN) $(OPT) -Iinclude -Isrc/json -Isrc/io -Isrc/engine
+CFLAGS   = $(CSTD) $(WARN) $(OPT) -Iinclude -Isrc/json -Isrc/io -Isrc/engine -Isrc/weather
 LDLIBS   = -lm
 
 BUILD    = build
@@ -30,6 +30,8 @@ FULL_SRC = \
 	$(ENGINE_SRC) \
 	src/engine/effects.c \
 	src/engine/casualties.c \
+	src/engine/lagrangian.c \
+	src/weather/weather.c \
 	src/json/json.c \
 	src/io/output.c \
 	src/io/output_report.c \
@@ -58,7 +60,8 @@ univac: dirs
 
 ENGINE_OBJS_FOR_TEST = \
 	src/engine/physics.c src/engine/fallout.c src/engine/terrain.c src/engine/engine.c \
-	src/engine/effects.c src/engine/casualties.c \
+	src/engine/effects.c src/engine/casualties.c src/engine/lagrangian.c \
+	src/weather/weather.c \
 	src/json/json.c src/io/output.c src/io/output_report.c \
 	src/io/scenario.c src/io/catalog.c src/io/output_teletype.c
 
@@ -67,10 +70,12 @@ test: dirs
 	$(CC) $(CFLAGS) src/engine/effects.c tests/test_effects.c -o $(BUILD)/test_effects $(LDLIBS)
 	$(CC) $(CFLAGS) $(ENGINE_OBJS_FOR_TEST) tests/test_casualties.c -o $(BUILD)/test_casualties $(LDLIBS)
 	$(CC) $(CFLAGS) src/engine/terrain.c src/engine/effects.c tests/test_terrain.c -o $(BUILD)/test_terrain $(LDLIBS)
+	$(CC) $(CFLAGS) $(ENGINE_OBJS_FOR_TEST) tests/test_lagrangian.c -o $(BUILD)/test_lagrangian $(LDLIBS)
 	./$(BUILD)/test_engine
 	./$(BUILD)/test_effects
 	./$(BUILD)/test_casualties
 	./$(BUILD)/test_terrain
+	./$(BUILD)/test_lagrangian
 
 clean:
 	rm -rf $(BUILD)

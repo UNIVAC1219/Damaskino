@@ -24,7 +24,8 @@
 /* Wind altitude layers, feet. Default profile; overridable per scenario. */
 #define DMK_NUM_WIND_LAYERS 6
 
-struct DmkDem;  /* forward decl; see src/engine/terrain.h */
+struct DmkDem;         /* forward decl; see src/engine/terrain.h */
+struct DmkWindColumn;  /* forward decl; see src/weather/weather.h */
 
 /* ---- Scenario inputs -------------------------------------------------- */
 
@@ -102,6 +103,7 @@ typedef struct {
     DmkGrid      grid;
     int          gz_x, gz_y;  /* ground zero grid coordinates */
     const struct DmkDem *dem; /* optional terrain (NULL = flat) */
+    const struct DmkWindColumn *wind; /* optional real winds (NULL = WSEG) */
     /* Activity accounting (fallout mass conservation / domain adequacy) */
     real_t       activity_emitted;   /* total activity released into the column */
     real_t       activity_on_grid;   /* activity deposited within the grid */
@@ -125,7 +127,14 @@ int  dmk_run(const DmkScenario *scenario, DmkModel *model);
 /* As dmk_run, but attaches an optional terrain DEM (may be NULL) that
  * modulates fallout deposition. */
 int  dmk_run_ex(const DmkScenario *scenario, const struct DmkDem *dem, DmkModel *model);
+/* Full form: optional DEM and optional real wind column. When a wind column is
+ * supplied the modern Lagrangian fallout model is used; otherwise WSEG-10. */
+int  dmk_run_full(const DmkScenario *scenario, const struct DmkDem *dem,
+                  const struct DmkWindColumn *wind, DmkModel *model);
 void dmk_model_free(DmkModel *model);
+
+/* Lagrangian particle fallout (Phase 3), used when a wind column is present. */
+void dmk_lagrangian_deposit(DmkModel *model);
 
 /* Grid helpers */
 static inline DmkCell *dmk_grid_at(DmkGrid *g, int x, int y) {

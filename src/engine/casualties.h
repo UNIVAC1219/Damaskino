@@ -65,6 +65,13 @@ real_t dmk_pinjury_blast(real_t overpressure_psi);
 real_t dmk_pinjury_thermal(real_t cal_cm2);
 real_t dmk_pinjury_radiation(real_t dose_rem);
 
+/* Accumulated fallout gamma dose (rem) from a cell's H+1 dose rate, integrated
+ * from arrival to the exposure window via Way-Wigner t^-1.2, reduced by the
+ * protection factor. This is the basis of the personal dose calculator and the
+ * evacuation/shelter dose contours. */
+real_t dmk_fallout_dose_rem(real_t rate_h1, real_t arrival_hr,
+                            real_t exposure_hr, real_t protection_factor);
+
 /* Integrate casualties over the model grid using the effect models and the
  * fallout dose field. */
 void dmk_casualties_compute(const DmkModel *model, const DmkPopulation *pop,

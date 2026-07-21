@@ -108,8 +108,8 @@ real_t dmk_pinjury_radiation(real_t rem) { return logistic_ln(rem, 150.0, 3.0); 
 /* Accumulated fallout dose (R ~ rem) from a cell's H+1 dose rate, integrated
  * from arrival to the exposure window using the Way-Wigner t^-1.2 law:
  *   D = integral_ta^tf I(1) t^-1.2 dt = 5 I(1) (ta^-0.2 - tf^-0.2). */
-static real_t fallout_accumulated_dose(real_t rate_h1, real_t arrival_hr,
-                                       real_t exposure_hr, real_t pf) {
+real_t dmk_fallout_dose_rem(real_t rate_h1, real_t arrival_hr,
+                            real_t exposure_hr, real_t pf) {
     if (rate_h1 <= 0.0) return 0.0;
     real_t ta = arrival_hr > 0.1 ? arrival_hr : 0.1;
     real_t tf = exposure_hr;
@@ -182,9 +182,9 @@ void dmk_casualties_compute(const DmkModel *m, const DmkPopulation *pop,
             real_t pp = dmk_pfatal_radiation(prem);
 
             const DmkCell *c = &m->grid.cell[(size_t)gy * m->grid.n + gx];
-            real_t frem = fallout_accumulated_dose(c->dose_rate_rhr, c->arrival_hr,
-                                                   opts->exposure_hours,
-                                                   opts->pf_fallout);
+            real_t frem = dmk_fallout_dose_rem(c->dose_rate_rhr, c->arrival_hr,
+                                               opts->exposure_hours,
+                                               opts->pf_fallout);
             real_t pf = dmk_pfatal_radiation(frem);
 
             /* Combined survival across independent mechanisms, thermal applied

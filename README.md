@@ -52,6 +52,7 @@ damaskino weapons
 | `--pop-density N` | uniform population (people/km²) → enables casualties |
 | `--pop-asc FILE` | population raster (ESRI ASCII grid; WorldPop/GHS-POP) |
 | `--dem FILE` | terrain DEM (ESRI ASCII grid) → line-of-sight + fallout |
+| `--weather FILE` | wind column (from `fetch_weather.py`) → Lagrangian fallout |
 | `--pf N` | fallout sheltering protection factor (dose ÷ N) |
 | `--pf-prompt N` | prompt-radiation protection factor (default 1) |
 | `--thermal-exposed F` | fraction with line-of-sight to the fireball |
@@ -91,7 +92,9 @@ estimated) or an explicit `layers` array. Invalid inputs (yield ≤ 0, ref_time
 | Air blast | cube-root-scaled peak-overpressure curve + surface/HOB factor; Rankine-Hugoniot winds | Glasstone & Dolan; Kingery-Bulmash |
 | Thermal | radiant fluence with meteorological-visibility transmittance; burn thresholds | Glasstone & Dolan |
 | Prompt radiation | neutron+gamma, dual exponential attenuation, 1/R² | Glasstone; Fetter et al. 1990 |
-| Fallout | WSEG-10 transport + Gaussian deposition (Lagrangian rewrite in Phase 3) | WSEG Report #10 (1959) |
+| Fallout (real wind) | Lagrangian particle dispersion: size-resolved parcels advected through the wind column with settling, turbulent spread, wet scavenging (rainout) | HYSPLIT/FLEXPART-class; Freiling fractionation |
+| Fallout (offline) | WSEG-10 transport + Gaussian deposition (fallback / UNIVAC) | WSEG Report #10 (1959) |
+| Protective actions | 48 h integrated-dose shelter/evacuation zones + fallout arrival timing | Way-Wigner; civil-defense PAGs |
 | Casualties | probit/LD50 for blast, thermal, radiation; sheltering; Way-Wigner dose | Glasstone; open lethality literature |
 | Terrain | global DEM; line-of-sight masking (thermal/prompt) w/ Earth curvature; valley/ridge fallout | SRTM15+ / Copernicus |
 | Cratering | apparent crater radius/depth, surface bursts (~W^0.3) | Glasstone & Dolan |
