@@ -18,12 +18,15 @@
 static int is_surface(const char *b) { return b && strcasecmp(b, "air") != 0; }
 
 static int check(const char *cat, const char *name, double got, double want,
-                 double tol, int approximate) {
+                 double tol, int approximate, int anchor) {
     double lo = want * (1.0 - tol), hi = want * (1.0 + tol);
     int pass = (got >= lo && got <= hi);
-    printf("  [%-4s] %-8s %-52.52s model %8.2f  ref %8.2f (+/-%.0f%%)\n",
-           pass ? "PASS" : (approximate ? "~~~~" : "FAIL"),
-           cat, name, got, want, tol * 100);
+    /* Distinguish: graded PASS/FAIL, ~INFO~ (approximate/wind-dependent, not
+     * graded), and =CONS= (anchor point the model was calibrated to -> a
+     * consistency/regression check, not independent validation). */
+    const char *tag = approximate ? "~INFO" : (anchor ? "=CONS" : (pass ? " PASS" : " FAIL"));
+    printf("  [%-5s] %-8s %-50.50s model %8.2f  ref %8.2f (+/-%.0f%%)\n",
+           tag, cat, name, got, want, tol * 100);
     return pass;
 }
 
@@ -71,8 +74,10 @@ static void run_array(JsonValue *root, const char *key, const char *cat,
         else { want = json_get_number(e, "reference_km", 0); }
         tol = json_get_number(e, "tolerance_frac", 0.2);
         int approx = json_get_bool(e, "approximate", 0);
-        int ok = check(cat, name, got, want, tol, approx);
-        if (!approx) { (*total)++; if (ok) (*pass)++; }
+        int anchor = json_get_bool(e, "anchor", 0);
+        int ok = check(cat, name, got, want, tol, approx, anchor);
+        /* Grade only independent cases (not approximate, not model anchors). */
+        if (!approx && !anchor) { (*total)++; if (ok) (*pass)++; }
     }
 }
 
@@ -112,7 +117,8 @@ int dmk_run_validation(const char *path) {
     if (!root) { fprintf(stderr, "ERROR: bad validation JSON: %s\n", err?err:"?"); return 2; }
 
     printf("=== Damaskino validation vs published benchmarks ===\n");
-    printf("  (~~~~  = approximate / wind-dependent, informational only)\n\n");
+    printf("  [ PASS/ FAIL] graded independent check   [=CONS] model anchor (consistency)\n");
+    printf("  [~INFO] approximate / wind-dependent, not graded\n\n");
     int pass = 0, total = 0;
     run_array(root, "blast", "blast", &pass, &total, m_blast);
     run_array(root, "thermal", "therm", &pass, &total, m_therm);
@@ -120,6 +126,11 @@ int dmk_run_validation(const char *path) {
     run_array(root, "crater", "crat", &pass, &total, m_crater);
     run_array(root, "fallout", "fall", &pass, &total, m_fallout);
 
+    if (total == 0) {
+        printf("\nWARNING: no gradeable benchmarks found in %s.\n", path);
+        json_free(root);
+        return 2;
+    }
     printf("\n%d/%d graded benchmarks passed.\n", pass, total);
     json_free(root);
     return (pass == total) ? 0 : 1;

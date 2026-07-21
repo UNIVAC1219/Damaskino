@@ -31,8 +31,8 @@ int main(void) {
     real_t levels[] = {1,10,100,1000}; int nlev=4;
 
     DmkEnsembleResult a, b;
-    CHECK(dmk_ensemble_run(&sc,&spec,40,123,levels,nlev,&a)==0, "ensemble runs");
-    CHECK(dmk_ensemble_run(&sc,&spec,40,123,levels,nlev,&b)==0, "ensemble runs (repeat)");
+    CHECK(dmk_ensemble_run(&sc,&spec,40,123,levels,nlev,NULL,&a)==0, "ensemble runs");
+    CHECK(dmk_ensemble_run(&sc,&spec,40,123,levels,nlev,NULL,&b)==0, "ensemble runs (repeat)");
 
     /* Determinism: same seed -> identical probability grids. */
     int identical=1;
@@ -61,7 +61,7 @@ int main(void) {
 
     /* Different seed -> generally different (not identical) */
     DmkEnsembleResult c;
-    dmk_ensemble_run(&sc,&spec,40,999,levels,nlev,&c);
+    dmk_ensemble_run(&sc,&spec,40,999,levels,nlev,NULL,&c);
     int differs=0;
     for (int i=0;i<c.n*c.n;i++) if (fabs(c.prob[0][i]-a.prob[0][i])>1e-9){differs=1;break;}
     /* a was freed; recompute quickly for the comparison would be needed -- instead

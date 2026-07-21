@@ -2,9 +2,9 @@
   "_comment": "Reference benchmarks for validation mode (Phase 3.5). Values are from open, published sources (Glasstone & Dolan 'The Effects of Nuclear Weapons' 1977; Hiroshima/Nagasaki DS02 dosimetry; public Castle Bravo fallout reconstructions). 'tolerance_frac' is the acceptance band for the model-vs-reference check. Entries flagged 'approximate' are order-of-magnitude coverage targets, not precise anchors.",
 
   "blast": [
-    { "case": "1 Mt air burst, 5 psi",  "yield_kt": 1000, "burst": "air", "overpressure_psi": 5,  "ground_range_km": 6.9,  "tolerance_frac": 0.15, "source": "Glasstone & Dolan Fig 3.73a" },
-    { "case": "1 Mt air burst, 20 psi", "yield_kt": 1000, "burst": "air", "overpressure_psi": 20, "ground_range_km": 3.1,  "tolerance_frac": 0.15, "source": "Glasstone & Dolan Fig 3.73a" },
-    { "case": "1 Mt air burst, 1 psi",  "yield_kt": 1000, "burst": "air", "overpressure_psi": 1,  "ground_range_km": 17.5, "tolerance_frac": 0.15, "source": "Glasstone & Dolan Fig 3.73a" },
+    { "case": "1 Mt air burst, 5 psi",  "yield_kt": 1000, "burst": "air", "overpressure_psi": 5,  "ground_range_km": 6.9,  "tolerance_frac": 0.15, "anchor": true, "source": "Glasstone & Dolan Fig 3.73a (model calibration anchor)" },
+    { "case": "1 Mt air burst, 20 psi", "yield_kt": 1000, "burst": "air", "overpressure_psi": 20, "ground_range_km": 3.1,  "tolerance_frac": 0.15, "anchor": true, "source": "Glasstone & Dolan Fig 3.73a (model calibration anchor)" },
+    { "case": "1 Mt air burst, 1 psi",  "yield_kt": 1000, "burst": "air", "overpressure_psi": 1,  "ground_range_km": 17.5, "tolerance_frac": 0.15, "anchor": true, "source": "Glasstone & Dolan Fig 3.73a (model calibration anchor)" },
     { "case": "20 kt air burst, 5 psi", "yield_kt": 20,   "burst": "air", "overpressure_psi": 5,  "ground_range_km": 1.9,  "tolerance_frac": 0.20, "source": "cube-root scaling of Glasstone 1 Mt" }
   ],
 
@@ -30,6 +30,6 @@
   ],
 
   "crater": [
-    { "case": "1 Mt surface, dry soil apparent crater radius", "yield_kt": 1000, "burst": "surface", "radius_m": 150, "tolerance_frac": 0.3, "source": "Glasstone & Dolan Ch 6 (dry soil)" }
+    { "case": "1 Mt surface, dry soil apparent crater radius", "yield_kt": 1000, "burst": "surface", "radius_m": 150, "tolerance_frac": 0.3, "anchor": true, "source": "Glasstone & Dolan Ch 6 (dry soil) (model calibration anchor)" }
   ]
 }

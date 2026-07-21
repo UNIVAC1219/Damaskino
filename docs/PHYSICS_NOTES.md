@@ -147,6 +147,29 @@ Deferred (Phase 3.5 / later):
 - **Activity accounting** for wet+dry is summed from on-grid Gaussian integrals
   (approximate at the domain edge).
 
+## Phase 3.5 — panel items
+
+Resolved (post-panel):
+- **Ensemble runs the Lagrangian model** when `--weather` is supplied: the same
+  per-member wind speed factor and direction rotation perturb the wind column,
+  so the probabilistic bands quantify the modern model's uncertainty, not just
+  the WSEG fallback. `used_lagrangian` is reported.
+- **Default samples raised to 300**; output notes that P>=90% tail bands need
+  more members than P>=50%.
+- **Validation honestly labels** [=CONS] model-anchor consistency checks vs.
+  [PASS/FAIL] independent graded checks vs. [~INFO] approximate/wind-dependent.
+  Only the 3 genuinely independent cases (20 kt blast cube-root, thermal, DS02
+  prompt) are graded; a benchmark file with zero gradeable cases now warns.
+- **ensemble.h doc aligned** to the implemented perturbations (yield, wind
+  speed/direction, fission; not HOB/particle size).
+
+Deferred:
+- **Per-layer wind decorrelation**: the ensemble perturbs the column rigidly
+  (one speed factor, one direction offset); add a small independent per-layer
+  component for fuller directional spread.
+- **Beta prior for fission fraction** (currently normal+clamp piles mass at the
+  bounds near 0/1). HOB and particle-size perturbation not yet included.
+
 ## Deferred to Phase 3.5 (Lagrangian fallout — further refinement)
 
 - **Continuous settling curve.** The piecewise Stokes / Schiller-Naumann /

@@ -247,32 +247,46 @@ static int cmd_dose(int argc, char **argv) {
 }
 
 static int cmd_ensemble(int argc, char **argv) {
-    const char *scenario_path = NULL, *json_out = NULL;
-    int samples = 100; unsigned seed = 1;
+    const char *scenario_path = NULL, *json_out = NULL, *weather_path = NULL;
+    int samples = 300; unsigned seed = 1;
     for (int i = 0; i < argc; i++) {
         if (!strcmp(argv[i], "--samples") && i+1 < argc) samples = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--seed") && i+1 < argc) seed = (unsigned)atoi(argv[++i]);
         else if (!strcmp(argv[i], "--json") && i+1 < argc) json_out = argv[++i];
+        else if (!strcmp(argv[i], "--weather") && i+1 < argc) weather_path = argv[++i];
         else if (argv[i][0] != '-') scenario_path = argv[i];
     }
-    if (!scenario_path) { fprintf(stderr, "Usage: damaskino ensemble <scenario.json> [--samples N] [--seed S] [--json f]\n"); return 2; }
+    if (!scenario_path) { fprintf(stderr, "Usage: damaskino ensemble <scenario.json> [--samples N] [--seed S] [--weather f] [--json f]\n"); return 2; }
     char *text = dmk_read_file(scenario_path);
     if (!text) { fprintf(stderr, "ERROR: cannot read %s\n", scenario_path); return 1; }
     DmkScenario sc; char err[256];
     if (dmk_scenario_parse(text, &sc, err, sizeof err) != 0) { fprintf(stderr, "ERROR: %s\n", err); free(text); return 1; }
     free(text);
 
+    DmkWindColumn wind; int have_wind = 0;
+    if (weather_path) {
+        if (dmk_weather_load(weather_path, &wind) != 0)
+            fprintf(stderr, "WARNING: could not load weather %s; ensemble uses WSEG\n", weather_path);
+        else have_wind = 1;
+    }
+
     DmkEnsembleSpec spec; dmk_ensemble_spec_defaults(&spec);
     real_t levels[] = {1, 10, 100, 1000};
     int nlev = 4;
     DmkEnsembleResult r;
-    if (dmk_ensemble_run(&sc, &spec, samples, seed, levels, nlev, &r) != 0) {
-        fprintf(stderr, "ERROR: ensemble run failed\n"); return 1;
+    if (dmk_ensemble_run(&sc, &spec, samples, seed, levels, nlev,
+                         have_wind ? &wind : NULL, &r) != 0) {
+        fprintf(stderr, "ERROR: ensemble run failed\n");
+        if (have_wind) dmk_weather_free(&wind);
+        return 1;
     }
 
-    printf("=== Monte Carlo ensemble: %d members ===\n", r.samples);
-    printf("  (yield CV %.0f%%, wind speed CV %.0f%%, dir sd %.0f deg, fission sd %.2f)\n\n",
+    printf("=== Monte Carlo ensemble: %d members (%s model) ===\n", r.samples,
+           r.used_lagrangian ? "Lagrangian+wind" : "WSEG");
+    printf("  (yield CV %.0f%%, wind speed CV %.0f%%, dir sd %.0f deg, fission sd %.2f)\n",
            spec.yield_cv*100, spec.wind_speed_cv*100, spec.wind_dir_sd, spec.fission_sd);
+    printf("  Note: P>=90%% (high-confidence) edges need more members than P>=50%%;\n"
+           "        raise --samples for stable tail bands.\n\n");
     printf("  Dose (R/hr) | P>=90%% area | P>=50%% area | P>=10%% area | P50 extent\n");
     printf("  ------------|-------------|-------------|-------------|----------\n");
     double cellA = r.cell_km * r.cell_km;
@@ -297,6 +311,7 @@ static int cmd_ensemble(int argc, char **argv) {
         JsonWriter w; json_writer_init(&w, 1);
         json_obj_begin(&w);
         json_kv_str(&w, "tool", "damaskino"); json_kv_str(&w, "analysis", "monte_carlo_ensemble");
+        json_kv_str(&w, "model", r.used_lagrangian ? "Lagrangian+wind" : "WSEG");
         json_kv_int(&w, "members", r.samples);
         json_key(&w, "exceedance"); json_arr_begin(&w);
         for (int l = 0; l < nlev; l++) {
@@ -325,6 +340,7 @@ static int cmd_ensemble(int argc, char **argv) {
         json_writer_free(&w);
     }
     dmk_ensemble_free(&r);
+    if (have_wind) dmk_weather_free(&wind);
     return 0;
 }
 
