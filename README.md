@@ -70,6 +70,27 @@ damaskino dose --rate 300 --arrival 1 --window 48 --pf 40
 | `--time day\|night` | time-of-day population multiplier |
 | `--threshold R/hr` | fallout cell threshold for GeoJSON |
 
+## Web frontend
+
+![Damaskino web map](docs/img/web_screenshot.png)
+
+A MapLibre map (`web/`) renders the engine's GeoJSON — fallout dose plume,
+blast/thermal/prompt rings, ground zero — with layer toggles, a legend, click
+popups, and an optional OpenStreetMap basemap. Two ways to drive it:
+
+```sh
+# Live in-browser engine (compiles the C core to WASM; needs emscripten)
+make wasm && python3 -m http.server -d web 8099   # open http://localhost:8099
+
+# Or without WASM: generate GeoJSON with the CLI and load it
+make example        # writes web/example.geojson (loaded by default)
+```
+
+With the WASM engine the scenario panel (yield, location, burst, wind, density)
+recomputes live; without it, the page loads precomputed GeoJSON from the CLI's
+`--geojson`. MapLibre is vendored under `web/vendor/`, so the page is
+self-contained (no CDN required).
+
 ## Scenario schema
 
 ```json

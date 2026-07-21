@@ -45,7 +45,16 @@ UNIVAC_SRC = \
 	$(ENGINE_SRC) \
 	src/univac/main.c
 
-.PHONY: all full univac test clean dirs
+.PHONY: all full univac test clean dirs wasm example
+
+# WASM build (emscripten): engine as string-in/string-out for the web frontend.
+WASM_SRC = \
+	src/engine/physics.c src/engine/fallout.c src/engine/terrain.c \
+	src/engine/engine.c src/engine/effects.c src/engine/casualties.c \
+	src/engine/lagrangian.c src/weather/weather.c src/json/json.c \
+	src/io/output.c src/io/output_report.c src/io/scenario.c \
+	src/io/catalog.c src/io/output_teletype.c src/web/dmk_web.c
+WASM_INC = -Iinclude -Isrc/json -Isrc/io -Isrc/engine -Isrc/weather
 
 all: full
 
@@ -80,6 +89,22 @@ test: dirs
 	./$(BUILD)/test_terrain
 	./$(BUILD)/test_lagrangian
 	./$(BUILD)/test_ensemble
+
+wasm:
+	@command -v emcc >/dev/null 2>&1 || { echo "emcc not found; install emscripten (https://emscripten.org) to build the live web engine"; exit 1; }
+	emcc $(WASM_SRC) $(WASM_INC) -O2 \
+	  -s EXPORTED_FUNCTIONS='["_dmk_web_geojson","_dmk_web_report","_dmk_web_free","_dmk_web_version","_malloc","_free"]' \
+	  -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","UTF8ToString","stringToUTF8","lengthBytesUTF8"]' \
+	  -s ALLOW_MEMORY_GROWTH=1 -s MODULARIZE=1 -s EXPORT_NAME=Damaskino \
+	  -o web/damaskino.js
+	@echo "Built web/damaskino.js + web/damaskino.wasm (live in-browser engine)"
+
+# Generate the example GeoJSON the static viewer loads by default.
+example: full
+	@mkdir -p web
+	./$(BUILD)/damaskino run examples/dc_500kt_surface.json --pop-density 4000 \
+	  --quiet --geojson web/example.geojson
+	@echo "Wrote web/example.geojson"
 
 clean:
 	rm -rf $(BUILD)

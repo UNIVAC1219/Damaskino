@@ -1,5 +1,7 @@
 /team_data
 /build
+/web/damaskino.js
+/web/damaskino.wasm
 *.exe
 *.obj
 *.pdb

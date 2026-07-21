@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Damaskino — Nuclear Effects Map</title>
+<link href="vendor/maplibre-gl.css" rel="stylesheet">
+<style>
+  :root { --bg:#0b0d14; --panel:#141826; --ink:#e8ecf4; --muted:#8b93a7; --edge:#232838; }
+  * { box-sizing: border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--ink);
+    font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  #map { position:absolute; inset:0; }
+  #panel { position:absolute; top:12px; left:12px; width:300px; max-height:calc(100% - 24px);
+    overflow:auto; background:var(--panel); border:1px solid var(--edge); border-radius:10px;
+    padding:14px 16px; box-shadow:0 8px 30px rgba(0,0,0,.5); z-index:5; }
+  h1 { font-size:16px; margin:0 0 2px; letter-spacing:.02em; }
+  .sub { color:var(--muted); font-size:12px; margin-bottom:12px; }
+  .disc { color:var(--muted); font-size:11px; border-top:1px solid var(--edge);
+    margin-top:12px; padding-top:10px; }
+  fieldset { border:1px solid var(--edge); border-radius:8px; margin:0 0 12px; padding:10px 12px; }
+  legend { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; padding:0 4px; }
+  label.row { display:flex; align-items:center; gap:8px; margin:5px 0; }
+  label.row span { flex:1; }
+  input[type=number], select { width:110px; background:#0e1220; color:var(--ink);
+    border:1px solid var(--edge); border-radius:6px; padding:4px 6px; }
+  button { width:100%; background:#2b6cff; color:#fff; border:0; border-radius:7px;
+    padding:9px; font-weight:600; cursor:pointer; }
+  button.secondary { background:#222a3d; }
+  .legend-item { display:flex; align-items:center; gap:8px; margin:4px 0; font-size:12px; }
+  .swatch { width:14px; height:14px; border-radius:3px; border:1px solid rgba(255,255,255,.2); }
+  .maplibregl-popup-content { background:#141826; color:#e8ecf4; border-radius:8px; }
+  #status { font-size:12px; color:var(--muted); margin-top:8px; min-height:16px; }
+  a { color:#6ea8ff; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">
+  <h1>Damaskino</h1>
+  <div class="sub">Nuclear-effects map · civil-defense / education</div>
+
+  <fieldset>
+    <legend>Scenario</legend>
+    <label class="row"><span>Yield (kt)</span><input id="yield" type="number" value="500" min="0.1" step="10"></label>
+    <label class="row"><span>Burst</span>
+      <select id="burst"><option value="surface">surface</option><option value="air">air</option></select></label>
+    <label class="row"><span>Latitude</span><input id="lat" type="number" value="38.8951" step="0.001"></label>
+    <label class="row"><span>Longitude</span><input id="lon" type="number" value="-77.0364" step="0.001"></label>
+    <label class="row"><span>Wind kts@deg</span><input id="wind" type="text" value="15@270" style="width:110px;background:#0e1220;color:#e8ecf4;border:1px solid var(--edge);border-radius:6px;padding:4px 6px"></label>
+    <label class="row"><span>Pop /km²</span><input id="pop" type="number" value="4000" min="0" step="500"></label>
+    <button id="run">Run scenario</button>
+    <div id="status"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Layers</legend>
+    <label class="row"><input type="checkbox" id="t-fallout" checked><span>Fallout dose (H+1)</span></label>
+    <label class="row"><input type="checkbox" id="t-blast" checked><span>Blast overpressure</span></label>
+    <label class="row"><input type="checkbox" id="t-thermal" checked><span>Thermal radiation</span></label>
+    <label class="row"><input type="checkbox" id="t-prompt" checked><span>Prompt radiation</span></label>
+    <label class="row"><input type="checkbox" id="t-base"><span>OpenStreetMap basemap</span></label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Legend</legend>
+    <div class="legend-item"><span class="swatch" style="background:#ff3b30"></span>Blast rings (1–20 psi)</div>
+    <div class="legend-item"><span class="swatch" style="background:#ff9500"></span>Thermal (1st–3rd° burns)</div>
+    <div class="legend-item"><span class="swatch" style="background:#bf5af2"></span>Prompt radiation (rem)</div>
+    <div class="legend-item"><span class="swatch" style="background:linear-gradient(90deg,#2b3a67,#e2c044,#e0201b)"></span>Fallout dose R/hr</div>
+  </fieldset>
+
+  <div>
+    <input type="file" id="file" accept=".geojson,.json" style="font-size:11px">
+    <div style="font-size:11px;color:var(--muted);margin-top:4px">…or load a GeoJSON from the CLI (<code>--geojson</code>).</div>
+  </div>
+
+  <div class="disc">Analytic effect estimates for preparedness/education. Not operational.
+  Build the live engine with <code>make wasm</code>; without it, this loads
+  precomputed GeoJSON.</div>
+</div>
+
+<script src="vendor/maplibre-gl.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
