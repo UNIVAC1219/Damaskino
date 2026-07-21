@@ -22,11 +22,11 @@
       "metric": "downwind extent of ~450 rem (48 h, unsheltered) contour",
       "level": 450, "reference_km": 200, "tolerance_frac": 0.5, "approximate": true,
       "source": "public Castle Bravo (1954) fallout reconstructions; strongly wind-dependent" },
-    { "case": "1 MT fission surface, 1000 R/hr H+1 downwind extent",
+    { "case": "1 MT fission surface, 1000 R/hr H+1 downwind extent (Lagrangian)",
       "yield_kt": 1000, "burst": "surface", "fission_fraction": 1.0,
-      "metric": "downwind extent of 1000 R/hr H+1 contour (idealized 15 kt wind)",
-      "level": 1000, "reference_km": 40, "tolerance_frac": 0.5, "approximate": true,
-      "source": "Glasstone & Dolan idealized unit-time reference dose-rate pattern" }
+      "metric": "downwind extent of 1000 R/hr H+1 contour (uniform 15 kt wind)",
+      "level": 1000, "reference_km": 55, "tolerance_frac": 0.4,
+      "source": "Glasstone & Dolan Fig 9.85 idealized 1 MT / 15 mph pattern (~50-65 km; sources vary)" }
   ],
 
   "crater": [

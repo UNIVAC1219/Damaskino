@@ -8,6 +8,7 @@
 #include "scenario.h"
 #include "effects.h"
 #include "casualties.h"
+#include "weather.h"
 #include "json.h"
 #include <stdio.h>
 #include <string.h>
@@ -30,18 +31,36 @@ static int check(const char *cat, const char *name, double got, double want,
     return pass;
 }
 
-/* Run a WSEG fallout scenario and return the max downwind extent (km) of a
- * dose-rate (R/hr) or accumulated-dose (rem, 48 h) contour. */
+/* Build a uniform westerly wind column (speed m/s) so the fallout validation
+ * measures a clean downwind extent from the modern Lagrangian model. */
+static int uniform_wind(DmkWindColumn *w, double speed_ms) {
+    memset(w, 0, sizeof(*w));
+    w->alt_m = (real_t *)malloc(2 * sizeof(real_t));
+    w->u_ms  = (real_t *)malloc(2 * sizeof(real_t));
+    w->v_ms  = (real_t *)malloc(2 * sizeof(real_t));
+    if (!w->alt_m || !w->u_ms || !w->v_ms) { dmk_weather_free(w); return -1; }
+    w->nlev = 2; w->loaded = 1;
+    w->alt_m[0] = 0.0;   w->alt_m[1] = 25000.0;
+    w->u_ms[0]  = speed_ms; w->u_ms[1] = speed_ms;   /* eastward, constant */
+    w->v_ms[0]  = 0.0;   w->v_ms[1] = 0.0;
+    return 0;
+}
+
+/* Run the modern Lagrangian fallout model with a canonical uniform wind and
+ * return the max downwind extent (km) of a dose-rate (R/hr) or accumulated-dose
+ * (rem, 48 h) contour. */
 static double fallout_extent(double yield, int surface, double fission,
                              const char *metric, double level) {
     DmkScenario sc; dmk_scenario_defaults(&sc);
     sc.weapon.yield_kt = yield; sc.weapon.is_surface_burst = surface;
     sc.weapon.fission_fraction = fission;
-    sc.atmosphere.layer[0].speed_kts = 15; sc.atmosphere.layer[0].direction_deg = 270;
-    dmk_atmosphere_estimate_aloft(&sc.atmosphere);
-    sc.cfg.grid_n = 300; sc.cfg.cell_km = 2.0; sc.cfg.ref_time_hr = 1.0;
+    sc.cfg.grid_n = 500; sc.cfg.cell_km = 2.0; sc.cfg.ref_time_hr = 1.0;
+    DmkWindColumn wind;
+    if (uniform_wind(&wind, 8.0) != 0) return 0.0;  /* ~15 kt */
     DmkModel m;
-    if (dmk_run(&sc, &m) != 0) return 0.0;
+    int rc = dmk_run_full(&sc, NULL, &wind, &m);
+    dmk_weather_free(&wind);
+    if (rc != 0) return 0.0;
     int use_dose = (metric && strstr(metric, "rem"));
     double mx = 0.0;
     for (int y = 0; y < m.grid.n; y++)

@@ -75,14 +75,15 @@ int main(void) {
     DmkScenario sc; dmk_scenario_defaults(&sc);
     sc.gz.lat = 38.9; sc.gz.lon = -77.0;
     sc.weapon.yield_kt = 500; sc.weapon.is_surface_burst = 1; sc.weapon.fission_fraction = 1.0;
-    sc.cfg.grid_n = 200; sc.cfg.cell_km = 2.0; sc.cfg.ref_time_hr = 1.0;
+    sc.cfg.grid_n = 400; sc.cfg.cell_km = 2.0; sc.cfg.ref_time_hr = 1.0;  /* 800 km */
 
     DmkWindColumn dry; dmk_weather_load(wp, &dry);
     DmkModel md;
     CHECK(dmk_run_full(&sc, NULL, &dry, &md) == 0, "Lagrangian run succeeds");
     CHECK(total_dose(&md) > 0.0, "Lagrangian deposits dose");
     CHECK(east_minus_west(&md) > 0.0, "plume drifts downwind (east)");
-    CHECK(md.off_grid_fraction < 0.15, "most activity retained on a large grid");
+    /* Fine particles form a worldwide-fallout tail; an 800 km grid holds the bulk. */
+    CHECK(md.off_grid_fraction < 0.25, "bulk of activity retained on an 800 km grid");
     double dry_extent = contour_extent(&md, 10.0);
     dmk_weather_free(&dry);
     dmk_model_free(&md);

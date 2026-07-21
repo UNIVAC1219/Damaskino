@@ -103,15 +103,31 @@ static real_t thermal_fraction(int is_surface_burst) {
     return is_surface_burst ? 0.20 : 0.35;
 }
 
+/* Atmospheric transmittance for the broadband thermal pulse. The direct-beam
+ * (Koschmieder) transmittance exp(-tau), tau = 3.912 R/V, omits the large
+ * forward-scattered contribution to fluence, so it under-predicts burn radii by
+ * ~20-40%. We add a single-scatter build-up factor (1 + b*tau): scattered
+ * photons re-enter the forward cone, raising the effective transmittance well
+ * above the beam value while remaining <= 1. b calibrated so a 1 Mt air burst
+ * delivers 8 cal/cm^2 (3rd-degree) at ~11 km at 20 km visibility (Glasstone &
+ * Dolan Ch. 7). Full angular-scattering tables (EM-1) are a later refinement. */
+real_t dmk_thermal_transmittance(real_t range_km, real_t visibility_km) {
+    if (visibility_km <= 0.0) visibility_km = 20.0;
+    real_t tau = 3.912 * range_km / visibility_km;
+    real_t T = exp(-tau) * (1.0 + 0.9 * tau);
+    if (T > 1.0) T = 1.0;
+    if (T < 0.0) T = 0.0;
+    return T;
+}
+
 real_t dmk_thermal_fluence(real_t yield_kt, int is_surface_burst,
                            real_t range_km, real_t visibility_km) {
     if (yield_kt <= 0.0 || range_km <= 0.0) return 0.0;
     if (visibility_km <= 0.0) visibility_km = 20.0;
     real_t f = thermal_fraction(is_surface_burst);
-    /* Extinction: meteorological visibility V -> sigma = 3.912/V per km. */
-    real_t tau = exp(-3.912 * range_km / visibility_km);
-    /* Q [cal/cm^2] = f * Y_kt * 100 * tau / (4 pi R_km^2)  (1 kt = 1e12 cal). */
-    return f * yield_kt * 100.0 * tau / (4.0 * M_PI * range_km * range_km);
+    real_t T = dmk_thermal_transmittance(range_km, visibility_km);
+    /* Q [cal/cm^2] = f * Y_kt * 100 * T / (4 pi R_km^2)  (1 kt = 1e12 cal). */
+    return f * yield_kt * 100.0 * T / (4.0 * M_PI * range_km * range_km);
 }
 
 real_t dmk_thermal_range_km(real_t yield_kt, int is_surface_burst,

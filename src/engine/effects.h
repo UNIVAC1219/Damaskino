@@ -35,6 +35,9 @@ real_t dmk_thermal_range_km(real_t yield_kt, int is_surface_burst,
 real_t dmk_thermal_fluence(real_t yield_kt, int is_surface_burst,
                            real_t range_km, real_t visibility_km);
 
+/* Atmospheric thermal transmittance (0..1) incl. forward-scatter build-up. */
+real_t dmk_thermal_transmittance(real_t range_km, real_t visibility_km);
+
 /* ---- Initial (prompt) nuclear radiation ------------------------------- */
 /* Prompt neutron+gamma dose (rem/roentgen-equivalent) at a slant/ground range
  * (km) for `yield_kt` with fission fraction `fission_fraction`. */
