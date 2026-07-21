@@ -9,6 +9,12 @@ Large list of targets in China/former USSR is from https://blog.nuclearsecrecy.c
   -> raw CSV: prepatory_CSVs/usa_targets_1956.csv
   -> filtered/categorized/yield-modeled by tools/build_adversary_targets.py
      into data/targets_adversary.json (see that file's provenance fields)
+  NOTE: the 1956 airfield points are city/district centroids (WGS84), roughly
+  +/-5-15 km from the true airfield DGZ, not surveyed aimpoints. Category and
+  yield are modeled (the source study specified neither); airfields are modeled
+  as soft-area AIR bursts. Crimea and Sevastopol are included on a CONTROL basis
+  (Russia-controlled since 2014) for force-laydown purposes; this is not a
+  sovereignty judgment (both are internationally recognized as Ukraine).
 
 Small list is from https://worldpopulationreview.com/state-rankings/nuclear-targets-by-state
 
