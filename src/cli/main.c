@@ -161,16 +161,18 @@ static int cmd_run(int argc, char **argv) {
 }
 
 static int cmd_targets(int argc, char **argv) {
-    const char *search = NULL, *state = NULL;
+    const char *search = NULL, *state = NULL, *catalog = NULL;
     int limit = 40;
     for (int i = 0; i < argc; i++) {
         if (!strcmp(argv[i], "--search") && i+1 < argc) search = argv[++i];
         else if (!strcmp(argv[i], "--state") && i+1 < argc) state = argv[++i];
         else if (!strcmp(argv[i], "--limit") && i+1 < argc) limit = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--catalog") && i+1 < argc) catalog = argv[++i];
     }
+    const char *path = catalog ? catalog : dmk_default_targets_path();
     DmkTarget *t = NULL; int n = 0;
-    if (dmk_load_targets(dmk_default_targets_path(), &t, &n) != 0) {
-        fprintf(stderr, "ERROR: cannot load %s\n", dmk_default_targets_path());
+    if (dmk_load_targets(path, &t, &n) != 0) {
+        fprintf(stderr, "ERROR: cannot load %s\n", path);
         return 1;
     }
     printf("%-5s %-34s %-16s %-14s %8s %s\n", "ID", "NAME", "STATE", "CATEGORY", "YIELD", "BURST");
@@ -353,7 +355,7 @@ int main(int argc, char **argv) {
             "     [--pop-asc f] [--dem f.asc] [--pf N] [--pf-prompt N] [--visibility KM]\n"
             "     [--exposure H] [--thermal-exposed F] [--time day|night]\n"
             "     [--threshold R/hr] [--quiet]\n"
-            "  %s targets [--search TERM] [--state ST] [--limit N]\n"
+            "  %s targets [--search TERM] [--state ST] [--limit N] [--catalog f]\n"
             "  %s weapons\n"
             "  %s dose --rate <H+1 R/hr> [--arrival H] [--window H] [--pf N]\n"
             "  %s ensemble <scenario.json> [--samples N] [--seed S] [--json f]\n"

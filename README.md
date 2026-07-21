@@ -143,6 +143,9 @@ may reference the **catalogs**:
 ```
 
 - `target` — numeric id or a name substring (see `damaskino targets`)
+- `catalog` — optional target file the `target` id/name resolves against
+  (default `data/targets.json`; use `data/targets_adversary.json` for the
+  USSR/China adversary list)
 - `weapon_preset` — a weapon id (see `damaskino weapons`)
 - `burst` — `"surface"` or `"air"` (air bursts get an optimal HOB if unset)
 - `wind` — a single `surface` layer (winds aloft are estimated) or an explicit
@@ -179,12 +182,15 @@ with `pip install -r requirements.txt`.
 | Tool | Purpose |
 |---|---|
 | `tools/build_targets.py` | Clean the source aimpoint list(s) into `data/targets.json` (fixes typos, parses yields/burst, assigns ids). Run: `python tools/build_targets.py` |
+| `tools/build_adversary_targets.py` | Build `data/targets_adversary.json` (USSR/China/DPRK) from the 1956 SAC "Air Power" airfield list (`prepatory_CSVs/usa_targets_1956.csv`), filtering out now-NATO/EU countries, categorizing, and modeling doctrine yields — plus ~34 curated modern ICBM/SSBN/bomber/C2 sites. Every row carries `source`/`category_source`/`yield_source` so real-vs-modeled is transparent. Run: `python tools/build_adversary_targets.py` |
 | `tools/prepare_dem.py` | Clip a global DEM (SRTM15+/Copernicus) to a target tile the engine reads via `--dem`. `python tools/prepare_dem.py --raster world.tif --lat 38.9 --lon -77 --radius-km 60 --out dem/dc.asc` |
 | `tools/fetch_weather.py` | Extract a wind column from ERA5 (Copernicus CDS) or GFS/GDAS (NOAA NCEP) GRIB2/NetCDF into the JSON the engine reads via `--weather`. `python tools/fetch_weather.py --grib gfs.grib2 --lat 38.9 --lon -77 --out weather/dc.json` |
 
-`data/targets.json` (target catalog) and `data/weapons.json` (weapon presets)
-ship prebuilt; the engine loads them for `damaskino targets/weapons` and for
-scenario `target`/`weapon_preset` references.
+`data/targets.json` (US target catalog), `data/targets_adversary.json`
+(USSR/China/DPRK catalog), and `data/weapons.json` (weapon presets) ship
+prebuilt; the engine loads them for `damaskino targets/weapons` and for scenario
+`target`/`weapon_preset` references. Browse the adversary list with
+`damaskino targets --catalog data/targets_adversary.json --state Russia`.
 
 ---
 
@@ -226,11 +232,12 @@ src/json/            dependency-free JSON parser + writer
 src/cli/             full-profile command-line driver
 src/univac/          UNIVAC-1219B lite teletype driver
 tests/               6 test suites (engine, effects, casualties, terrain, lagrangian, ensemble)
-data/                target catalog + weapon presets (prebuilt JSON)
-tools/               Python data-prep scripts (targets, DEM, weather)
+data/                US + USSR/China target catalogs + weapon presets (prebuilt JSON)
+tools/               Python data-prep scripts (targets, adversary targets, DEM, weather)
 web/                 MapLibre frontend (+ vendored MapLibre, example GeoJSON)
 docs/                PHYSICS_NOTES.md (fidelity ledger) + images
-prepatory_CSVs/      source aimpoint CSV(s) for tools/build_targets.py
+prepatory_CSVs/      source aimpoint CSVs (build_targets.py, build_adversary_targets.py)
+readme.txt           data-source URLs & attribution
 examples/            sample scenarios
 plan.md              architecture & roadmap (all phases delivered)
 ```

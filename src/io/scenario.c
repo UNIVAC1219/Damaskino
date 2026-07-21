@@ -58,9 +58,14 @@ int dmk_scenario_parse(const char *json_text, DmkScenario *out,
      * "weapon_preset": weapon id string. */
     JsonValue *tgt = json_get(root, "target");
     if (tgt) {
+        /* Optional "catalog" field selects an alternate target file, e.g.
+         * "data/targets_adversary.json"; defaults to data/targets.json. */
+        JsonValue *cat = json_get(root, "catalog");
+        const char *tpath = (cat && cat->type == JSON_STRING)
+                            ? cat->u.string : dmk_default_targets_path();
         DmkTarget *ts = NULL; int tn = 0;
-        if (dmk_load_targets(dmk_default_targets_path(), &ts, &tn) != 0) {
-            if (errbuf) snprintf(errbuf, errlen, "cannot load target catalog (data/targets.json)");
+        if (dmk_load_targets(tpath, &ts, &tn) != 0) {
+            if (errbuf) snprintf(errbuf, errlen, "cannot load target catalog (%s)", tpath);
             json_free(root); return 1;
         }
         int idx = -1;
