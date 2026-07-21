@@ -101,6 +101,10 @@ int dmk_run_full(const DmkScenario *scenario, const struct DmkDem *dem,
         dmk_fallout_deposit(model);
     }
 
+    /* Terrain valley/ridge redistribution applies to whichever fallout model
+     * ran (mass-conserving; no-op without a DEM). */
+    dmk_terrain_redistribute(model);
+
     snprintf(model->model_versions, sizeof(model->model_versions),
              "engine=%s;fallout=%s;cloud=WSEG-10;decay=Way-Wigner-1.2;terrain=%s;wind=%s",
              DMK_VERSION_STRING, fallout_model, dem ? "DEM" : "flat", wind_src);

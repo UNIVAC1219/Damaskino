@@ -29,7 +29,8 @@
 #define DMK_LAGR_ALT_LEVELS   16      /* release altitudes across the cloud */
 #define DMK_LAGR_AZIMUTHS      8      /* initial horizontal samples (ring) */
 #define DMK_LAGR_RINGS         2      /* radial samples within the cloud disk */
-#define DMK_LAGR_DT            30.0   /* transport timestep, seconds */
+#define DMK_LAGR_DT            30.0   /* legacy fixed step (unused; adaptive now) */
+#define DMK_VTAB_DZ            250.0  /* settling-table / adaptive-step vertical dz, m */
 #define DMK_LAGR_SIGMA_CUTOFF  4.0    /* deposit within +/- this many sigma */
 #define DMK_EDDY_DIFFUSIVITY   40.0   /* horizontal K, m^2/s (turbulent spread) */
 #define DMK_LAGR_MAX_STEPS     200000 /* fall-integration step cap (~70 days) */
@@ -156,11 +157,25 @@ void dmk_lagrangian_deposit(DmkModel *model) {
     model->activity_emitted = 0.0;
     model->activity_on_grid = 0.0;
 
+    /* Settling velocity is a pure function of (diameter, altitude); precompute a
+     * per-class table over altitude and interpolate in the hot loop instead of
+     * re-solving the implicit Clift-Gauvin balance every timestep. */
+    real_t vtab_dz = DMK_VTAB_DZ;
+    real_t vtab_top = gz_elev_m + top_km * DMK_KM_TO_M * 1.05 + 1000.0;
+    int vtab_n = (int)(vtab_top / vtab_dz) + 2;
+    if (vtab_n < 2) vtab_n = 2;
+    if (vtab_n > 400) { vtab_n = 400; vtab_dz = vtab_top / (vtab_n - 1); }
+    real_t *vtab = (real_t *)malloc((size_t)vtab_n * sizeof(real_t));
+    if (!vtab) return;
+
     for (int pc = 0; pc < DMK_NUM_PARTICLE_CLASSES; pc++) {
         if (model->particles.mass_fraction[pc] < 1.0e-4) continue;
         real_t diameter = DMK_PARTICLE_DIAMETERS[pc];
         real_t class_act = total_act * class_w[pc] / wsum;
         real_t per_release = class_act / (DMK_LAGR_ALT_LEVELS * n_horiz);
+
+        for (int L = 0; L < vtab_n; L++)
+            vtab[L] = dmk_settling_velocity(diameter, L * vtab_dz);
 
         for (int ia = 0; ia < DMK_LAGR_ALT_LEVELS; ia++) {
             real_t af = (DMK_LAGR_ALT_LEVELS == 1) ? 0.5
@@ -194,9 +209,18 @@ void dmk_lagrangian_deposit(DmkModel *model) {
                 while (alt > gz_elev_m) {
                     if (guard++ > DMK_LAGR_MAX_STEPS) { landed = 0; break; }
                     real_t u, v; dmk_wind_at(wind, alt, &u, &v);
-                    real_t vset = dmk_settling_velocity(diameter, alt);
-                    real_t dt = DMK_LAGR_DT;
-                    /* limit dt so we don't overshoot the ground */
+                    /* interpolate settling velocity from the per-class table */
+                    real_t fL = alt / vtab_dz;
+                    int li = (int)fL;
+                    if (li < 0) li = 0;
+                    if (li > vtab_n - 2) li = vtab_n - 2;
+                    real_t vset = vtab[li] + (fL - li) * (vtab[li+1] - vtab[li]);
+                    /* Adaptive timestep: fall a fixed ~vertical step per iteration
+                     * so slow (fine) particles don't take millions of steps.
+                     * Bounded [1 s, 600 s] and clamped to not overshoot ground. */
+                    real_t dt = DMK_VTAB_DZ / vset;
+                    if (dt < 1.0) dt = 1.0;
+                    if (dt > 600.0) dt = 600.0;
                     if (vset * dt > (alt - gz_elev_m)) dt = (alt - gz_elev_m) / vset;
 
                     x_m += u * dt; y_m += v * dt;
@@ -238,6 +262,7 @@ void dmk_lagrangian_deposit(DmkModel *model) {
             }
         }
     }
+    free(vtab);
 
     /* Air bursts loft the fine debris; minimal local fallout. */
     if (!sc->weapon.is_surface_burst) {

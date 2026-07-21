@@ -34,7 +34,7 @@ static int clampi(int v, int lo, int hi) {
 /* Precompute a per-cell terrain deposition modifier: fallout concentrates in
  * valleys (local low spots) and is reduced on ridges. Returns a malloc'd
  * n*n array of factors (~0.8..1.3), or NULL if no DEM. */
-static real_t *terrain_factor_grid(const DmkModel *model) {
+static real_t *terrain_factor_grid_of(const DmkModel *model) {
     const DmkDem *dem = model->dem;
     if (!dmk_dem_ready(dem)) return NULL;
     int n = model->grid.n;
@@ -68,8 +68,7 @@ static real_t *terrain_factor_grid(const DmkModel *model) {
     return terr;
 }
 
-static void deposit_class(DmkModel *model, int pc, const real_t *terr,
-                          double *sum_plain, double *sum_weighted) {
+static void deposit_class(DmkModel *model, int pc) {
     const DmkScenario *sc = &model->scenario;
     const DmkAtmosphere *atm = &sc->atmosphere;
     DmkGrid *g = &model->grid;
@@ -156,13 +155,7 @@ static void deposit_class(DmkModel *model, int pc, const real_t *terr,
                 real_t cell_x = (gx - model->gz_x) * cell_km;
                 real_t dx = cell_x - land_x_km;
                 real_t dep = exp(-(dx * dx + dy * dy) * inv2s2);
-                real_t base_dose = base * dep;
-                real_t dose = terr ? base_dose * terr[(size_t)gy * g->n + gx] : base_dose;
-                /* Track plain vs terrain-weighted on-grid activity so terrain
-                 * can be renormalized to a mass-conserving redistribution. */
-                real_t ca = cell_km * cell_km;
-                *sum_plain    += base_dose * ca;
-                *sum_weighted += dose * ca;
+                real_t dose = base * dep;
 
                 DmkCell *c = dmk_grid_at(g, gx, gy);
                 c->dose_rate_rhr += dose;
@@ -176,23 +169,36 @@ static void deposit_class(DmkModel *model, int pc, const real_t *terr,
     }
 }
 
-void dmk_fallout_deposit(DmkModel *model) {
-    model->activity_emitted = 0.0;
-    model->activity_on_grid = 0.0;
-    real_t *terr = terrain_factor_grid(model);
+/* Apply the terrain valley/ridge modifier to the deposited dose grid as a
+ * mass-conserving redistribution (rescale so the weighted total equals the
+ * plain total). Works on whatever fallout model filled the grid (WSEG or
+ * Lagrangian), so both get consistent terrain effects. No-op without a DEM. */
+void dmk_terrain_redistribute(DmkModel *model) {
+    real_t *terr = terrain_factor_grid_of(model);
+    if (!terr) return;
+    DmkGrid *g = &model->grid;
     double sum_plain = 0.0, sum_weighted = 0.0;
-    for (int pc = 0; pc < DMK_NUM_PARTICLE_CLASSES; pc++)
-        deposit_class(model, pc, terr, &sum_plain, &sum_weighted);
-
-    /* Terrain is a mass-conserving REDISTRIBUTION (valleys collect what ridges
-     * shed): rescale so the terrain-weighted total equals the plain total. */
-    if (terr && sum_weighted > 0.0) {
+    real_t ca = g->cell_km * g->cell_km;
+    for (size_t i = 0; i < (size_t)g->n * g->n; i++) {
+        double d0 = g->cell[i].dose_rate_rhr;
+        double dw = d0 * terr[i];
+        sum_plain += d0 * ca;
+        sum_weighted += dw * ca;
+        g->cell[i].dose_rate_rhr = dw;
+    }
+    if (sum_weighted > 0.0) {
         real_t k = (real_t)(sum_plain / sum_weighted);
-        DmkGrid *g = &model->grid;
         for (size_t i = 0; i < (size_t)g->n * g->n; i++)
             g->cell[i].dose_rate_rhr *= k;
     }
     free(terr);
+}
+
+void dmk_fallout_deposit(DmkModel *model) {
+    model->activity_emitted = 0.0;
+    model->activity_on_grid = 0.0;
+    for (int pc = 0; pc < DMK_NUM_PARTICLE_CLASSES; pc++)
+        deposit_class(model, pc);
 
     model->off_grid_fraction = (model->activity_emitted > 0.0)
         ? 1.0 - model->activity_on_grid / model->activity_emitted

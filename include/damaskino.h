@@ -136,6 +136,10 @@ void dmk_model_free(DmkModel *model);
 /* Lagrangian particle fallout (Phase 3), used when a wind column is present. */
 void dmk_lagrangian_deposit(DmkModel *model);
 
+/* Apply terrain valley/ridge redistribution to the fallout grid (mass-
+ * conserving; no-op without a DEM). Applied after either fallout model. */
+void dmk_terrain_redistribute(DmkModel *model);
+
 /* Grid helpers */
 static inline DmkCell *dmk_grid_at(DmkGrid *g, int x, int y) {
     return &g->cell[(size_t)y * g->n + x];
