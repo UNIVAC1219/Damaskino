@@ -1,5 +1,51 @@
 # Physics notes & deferred model work
 
+## Phase 5 — fidelity hardening (drove down the deferred list)
+
+Resolved:
+- **Thermal transmittance** now includes forward-scatter build-up
+  `T = exp(-tau)(1 + 0.9 tau)` instead of raw beam extinction; 1 Mt 3rd-degree
+  burns 8.3 -> 10.9 km, matching Glasstone ~11 km (was ~20-40% short).
+- **Cloud rise** recalibrated to Glasstone Ch. 9 (top `21.5 W_MT^0.2`, ~20 km at
+  1 Mt vs. the old 12.5 km). Release spans the stem (0.1*top) to top so the
+  near-GZ coarse hotspot is retained. This lengthened the fallout pattern toward
+  the Glasstone benchmark.
+- **Settling velocity** is a continuous implicit terminal-velocity solve
+  (Clift-Gauvin Cd(Re)) -- no Stokes/Newton regime discontinuity.
+- **Particle size** is a log-normal in MASS with the correct activity-median
+  (~200 um for local fallout) and Delta-ln(d) bin weighting (the d^3 form
+  implied ~1500 um, far too coarse).
+- **Anisotropic plume**: deposition is an oriented sigma_along/sigma_cross
+  Gaussian with a scale-dependent crosswind term, so the plume is a realistic
+  ~6:1 cigar even under a unidirectional column (was a thin line). Pasquill-
+  Gifford stability (A..F) scales crosswind spread.
+- **Wet scavenging** confined to the precipitating layer (below ~6 km) rather
+  than the whole fall column.
+- **Terrain fallout modifier** is now a mass-conserving redistribution (grid
+  rescaled so valleys collect exactly what ridges shed).
+- **Ensemble priors**: logit-normal fission fraction (no boundary pile-up) and
+  independent per-layer wind decorrelation atop the shared synoptic term.
+- **Prompt radiation** uses slant geometry `sqrt(ground^2 + HOB^2)` for both
+  casualty dose and the ground rings.
+- **Fallout validation** now exercises the modern Lagrangian model: 1 Mt
+  1000 R/hr H+1 downwind extent 40 km (Glasstone Fig 9.85 ~50-65 km at 15 mph;
+  the wider anisotropic plume sits at the lower end) -- a graded check.
+
+Honestly remaining (research-scale, disclosed):
+- **Full fractionated fission-product inventory.** Decay still uses Way-Wigner
+  t^-1.2 (which reproduces the standard 7/10 rule exactly and is the accepted
+  engineering model) with the Glasstone 1.6e6 R/hr H+1 activity anchor. A real
+  per-nuclide inventory with fractionation-dependent decay (near-in refractory
+  vs. far volatile) is the ultimate refinement; spatial patterns and arrival
+  times are more trustworthy than absolute R/hr.
+- **True 4-D weather**: a single wind column is advected (now with per-layer
+  shear and stability); full space/time-varying gridded winds + a spatial
+  precip field (for localized rainout hotspots) remain future work.
+- **Global DEM pyramid** (single regional tile today); blast is not terrain-
+  masked (diffraction).
+
+
+
 Living record of model fidelity decisions and items raised by the expert review
 panel (nuclear physicist + nuclear event modeler). Blocking items are fixed in
 the phase they were raised; deferred items are scheduled to the phase that owns
