@@ -1,0 +1,19 @@
+{
+  "_comment": "Public weapon presets for education/civil-defense. Yields and fission fractions are open-source estimates (FAS Nuclear Notebook, Glasstone & Dolan, public literature). Fission fraction drives fallout activity; thermonuclear devices are typically ~0.5. No design information is implied by these bulk parameters.",
+  "weapons": [
+    { "id": "trinity",     "name": "Trinity / Gadget (1945)",        "yield_kt": 21,    "fission_fraction": 1.0,  "default_burst": "air",     "hob_m": 30 },
+    { "id": "little_boy",  "name": "Little Boy (Hiroshima, 1945)",   "yield_kt": 15,    "fission_fraction": 1.0,  "default_burst": "air",     "hob_m": 580 },
+    { "id": "fat_man",     "name": "Fat Man (Nagasaki, 1945)",       "yield_kt": 21,    "fission_fraction": 1.0,  "default_burst": "air",     "hob_m": 503 },
+    { "id": "castle_bravo","name": "Castle Bravo (1954)",            "yield_kt": 15000, "fission_fraction": 0.67, "default_burst": "surface", "hob_m": 0 },
+    { "id": "tsar_bomba",  "name": "Tsar Bomba (1961, as tested)",   "yield_kt": 50000, "fission_fraction": 0.03, "default_burst": "air",     "hob_m": 4000 },
+    { "id": "w76_1",       "name": "W76-1 (US SLBM)",                "yield_kt": 90,    "fission_fraction": 0.5,  "default_burst": "air",     "hob_m": 0 },
+    { "id": "w78",         "name": "W78 (US ICBM)",                  "yield_kt": 335,   "fission_fraction": 0.5,  "default_burst": "air",     "hob_m": 0 },
+    { "id": "w87",         "name": "W87 (US ICBM)",                  "yield_kt": 300,   "fission_fraction": 0.5,  "default_burst": "air",     "hob_m": 0 },
+    { "id": "w88",         "name": "W88 (US SLBM)",                  "yield_kt": 455,   "fission_fraction": 0.5,  "default_burst": "air",     "hob_m": 0 },
+    { "id": "b83",         "name": "B83 (US bomb, max)",             "yield_kt": 1200,  "fission_fraction": 0.5,  "default_burst": "surface", "hob_m": 0 },
+    { "id": "b61_12",      "name": "B61-12 (US bomb, max dial)",     "yield_kt": 50,    "fission_fraction": 0.5,  "default_burst": "air",     "hob_m": 0 },
+    { "id": "w80",         "name": "W80 (US cruise missile)",        "yield_kt": 150,   "fission_fraction": 0.5,  "default_burst": "air",     "hob_m": 0 },
+    { "id": "ru_800",      "name": "Russian ICBM (typical 800 kt)",  "yield_kt": 800,   "fission_fraction": 0.5,  "default_burst": "surface", "hob_m": 0 },
+    { "id": "dprk_2017",   "name": "DPRK 2017 test (est.)",          "yield_kt": 250,   "fission_fraction": 0.6,  "default_burst": "surface", "hob_m": 0 }
+  ]
+}
