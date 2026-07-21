@@ -1,0 +1,35 @@
+{
+  "_comment": "Reference benchmarks for validation mode (Phase 3.5). Values are from open, published sources (Glasstone & Dolan 'The Effects of Nuclear Weapons' 1977; Hiroshima/Nagasaki DS02 dosimetry; public Castle Bravo fallout reconstructions). 'tolerance_frac' is the acceptance band for the model-vs-reference check. Entries flagged 'approximate' are order-of-magnitude coverage targets, not precise anchors.",
+
+  "blast": [
+    { "case": "1 Mt air burst, 5 psi",  "yield_kt": 1000, "burst": "air", "overpressure_psi": 5,  "ground_range_km": 6.9,  "tolerance_frac": 0.15, "source": "Glasstone & Dolan Fig 3.73a" },
+    { "case": "1 Mt air burst, 20 psi", "yield_kt": 1000, "burst": "air", "overpressure_psi": 20, "ground_range_km": 3.1,  "tolerance_frac": 0.15, "source": "Glasstone & Dolan Fig 3.73a" },
+    { "case": "1 Mt air burst, 1 psi",  "yield_kt": 1000, "burst": "air", "overpressure_psi": 1,  "ground_range_km": 17.5, "tolerance_frac": 0.15, "source": "Glasstone & Dolan Fig 3.73a" },
+    { "case": "20 kt air burst, 5 psi", "yield_kt": 20,   "burst": "air", "overpressure_psi": 5,  "ground_range_km": 1.9,  "tolerance_frac": 0.20, "source": "cube-root scaling of Glasstone 1 Mt" }
+  ],
+
+  "thermal": [
+    { "case": "1 Mt air, 3rd-degree burns, 20 km vis", "yield_kt": 1000, "burst": "air", "cal_cm2": 8.0, "visibility_km": 20, "ground_range_km": 11.0, "tolerance_frac": 0.35, "note": "conservative: Phase 1 transmittance neglects forward scatter", "source": "Glasstone & Dolan Ch 7" }
+  ],
+
+  "prompt_radiation": [
+    { "case": "Hiroshima ~15 kt, ~500 rem initial", "yield_kt": 15, "fission_fraction": 1.0, "dose_rem": 500, "ground_range_km": 1.1, "tolerance_frac": 0.30, "source": "Hiroshima DS02 initial-radiation dosimetry" }
+  ],
+
+  "fallout": [
+    { "case": "Castle Bravo 15 Mt surface, lethal fallout downwind extent",
+      "yield_kt": 15000, "burst": "surface", "fission_fraction": 0.67,
+      "metric": "downwind extent of ~450 rem (48 h, unsheltered) contour",
+      "reference_km": 200, "tolerance_frac": 0.5, "approximate": true,
+      "source": "public Castle Bravo (1954) fallout reconstructions; strongly wind-dependent" },
+    { "case": "1 MT fission surface, 1000 R/hr H+1 downwind extent",
+      "yield_kt": 1000, "burst": "surface", "fission_fraction": 1.0,
+      "metric": "downwind extent of 1000 R/hr H+1 contour (idealized 15 kt wind)",
+      "reference_km": 40, "tolerance_frac": 0.5, "approximate": true,
+      "source": "Glasstone & Dolan idealized unit-time reference dose-rate pattern" }
+  ],
+
+  "crater": [
+    { "case": "1 Mt surface, dry soil apparent crater radius", "yield_kt": 1000, "burst": "surface", "radius_m": 150, "tolerance_frac": 0.3, "source": "Glasstone & Dolan Ch 6 (dry soil)" }
+  ]
+}
